@@ -1,17 +1,9 @@
-import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
-import { useShowTopics } from '@renderer/hooks/useStore'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { Assistant, Topic } from '@renderer/types'
-import { classNames, uuid } from '@renderer/utils'
-import { FC, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { classNames } from '@renderer/utils'
+import { FC } from 'react'
 import styled from 'styled-components'
-
-import Assistants from './AssistantsTab'
-import Settings from './SettingsTab'
-import Topics from './TopicsTab'
+import FoldersView from './FoldersView'
 
 interface Props {
   activeAssistant: Assistant
@@ -23,27 +15,11 @@ interface Props {
   style?: React.CSSProperties
 }
 
-type Tab = 'assistants' | 'topic' | 'settings'
-
-let _tab: any = ''
-
 const ChatsTabs: FC<Props> = ({
-  activeAssistant,
-  activeTopic,
-  setActiveAssistant,
-  setActiveTopic,
   position,
-  forceToSeeAllTab,
   style
 }) => {
-  const { addAssistant } = useAssistants()
-  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
-  const { topicPosition } = useSettings()
-  const { defaultAssistant } = useDefaultAssistant()
-  const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
-
-  const { t } = useTranslation()
 
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
@@ -51,100 +27,13 @@ const ChatsTabs: FC<Props> = ({
       ? { borderRight: isLeftNavbar ? borderStyle : 'none' }
       : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
 
-  if (position === 'left' && topicPosition === 'left') {
-    _tab = tab
-  }
-
-  const showTab = position === 'left' && topicPosition === 'left'
-
-  const onCreateAssistant = async () => {
-    const assistant = await AddAssistantPopup.show()
-    assistant && setActiveAssistant(assistant)
-  }
-
-  const onCreateDefaultAssistant = () => {
-    const assistant = { ...defaultAssistant, id: uuid() }
-    addAssistant(assistant)
-    setActiveAssistant(assistant)
-  }
-
-  useEffect(() => {
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SHOW_ASSISTANTS, (): any => {
-        showTab && setTab('assistants')
-      }),
-      EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, (): any => {
-        showTab && setTab('topic')
-      }),
-      EventEmitter.on(EVENT_NAMES.SHOW_CHAT_SETTINGS, (): any => {
-        showTab && setTab('settings')
-      }),
-      EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
-        showTab && setTab('topic')
-        if (position === 'left' && topicPosition === 'right') {
-          toggleShowTopics()
-        }
-      })
-    ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
-
-  useEffect(() => {
-    if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
-      setTab('topic')
-    }
-    if (position === 'left' && topicPosition === 'right' && tab === 'topic') {
-      setTab('assistants')
-    }
-  }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
     <Container
       style={{ ...border, ...style }}
-      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
-      {position === 'left' && topicPosition === 'left' && (
-        <CustomTabs>
-          <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
-            {t('assistants.abbr')}
-          </TabItem>
-          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
-          </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
-        </CustomTabs>
-      )}
-
-      {position === 'right' && topicPosition === 'right' && (
-        <CustomTabs>
-          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
-          </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
-        </CustomTabs>
-      )}
-
+      className={classNames('home-tabs', { right: position === 'right' })}>
       <TabContent className="home-tabs-content">
-        {tab === 'assistants' && (
-          <Assistants
-            activeAssistant={activeAssistant}
-            setActiveAssistant={setActiveAssistant}
-            onCreateAssistant={onCreateAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-          />
-        )}
-        {tab === 'topic' && (
-          <Topics
-            assistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveTopic={setActiveTopic}
-            position={position}
-          />
-        )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        <FoldersView />
       </TabContent>
     </Container>
   )
