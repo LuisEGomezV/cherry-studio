@@ -25,6 +25,7 @@ export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 
 
 export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'assistants',
+  'chats',
   'agents',
   'paintings',
   'translate',
