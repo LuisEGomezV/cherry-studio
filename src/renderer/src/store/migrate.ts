@@ -2094,6 +2094,25 @@ const migrateConfig = {
       logger.error('migrate 130 error', error as Error)
       return state
     }
+  },
+  '131': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons && state.settings.sidebarIcons.visible) {
+        if (!state.settings.sidebarIcons.visible.includes('chats' as any)) {
+          const assistantsIndex = state.settings.sidebarIcons.visible.indexOf('assistants')
+          if (assistantsIndex !== -1) {
+            state.settings.sidebarIcons.visible.splice(assistantsIndex + 1, 0, 'chats' as any)
+          } else {
+            // If assistants icon isn't there for some reason, add it to the end.
+            state.settings.sidebarIcons.visible.push('chats' as any)
+          }
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 131 error', error as Error)
+      return state
+    }
   }
 }
 
