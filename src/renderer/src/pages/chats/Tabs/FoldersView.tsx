@@ -57,6 +57,8 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [folders, setFolders] = useState<FolderWithChildren[]>([]);
   const [rootTopics, setRootTopics] = useState<Topic[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const fetchData = async () => {
     const { rootFolders, rootTopics } = await folderService.getFolderTree();
@@ -107,9 +109,26 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
     </Menu>
   );
 
-  const handleTopicRename = async (topic: Topic, newName: string) => {
-    await TopicManager.updateTopic(topic.id, { name: newName });
-    fetchData();
+  const handleRename = async (id: string, isFolder: boolean) => {
+    if (editingName.trim()) {
+      if (isFolder) {
+        await folderService.updateFolder(id, { name: editingName.trim() });
+      } else {
+        await TopicManager.updateTopic(id, { name: editingName.trim() });
+      }
+      fetchData();
+    }
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, isFolder: boolean) => {
+    if (e.key === 'Enter') {
+      handleRename(id, isFolder);
+    } else if (e.key === 'Escape') {
+      setEditingId(null);
+      setEditingName('');
+    }
   };
 
   const transformData = (items: (FolderWithChildren | Topic)[]): DataNode[] => {
@@ -143,6 +162,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
           onKeyDown={(e) => handleEditKeyDown(e, node.key as string, !node.isLeaf)}
           onBlur={() => handleRename(node.key as string, !node.isLeaf)}
           autoFocus
+          style={{ width: '100%', border: '1px solid var(--color-primary)', borderRadius: '4px' }}
         />
       );
     }
@@ -153,7 +173,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
                 isActive={activeTopic?.id === node.topic.id}
                 onSelect={onTopicClick}
                 onDelete={() => { removeTopic(node.topic); fetchData(); }}
-                onRename={handleTopicRename}
+                onRename={(topic, newName) => handleRename(topic.id, false)}
              />;
     }
     return (
@@ -187,7 +207,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
               isActive={activeTopic?.id === topic.id}
               onSelect={onTopicClick}
               onDelete={() => { removeTopic(topic); fetchData(); }}
-              onRename={handleTopicRename}
+              onRename={(topic, newName) => handleRename(topic.id, false)}
             />
           ))}
         </RootTopicList>
