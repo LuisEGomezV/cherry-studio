@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Tree, Dropdown, Menu } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import styled from 'styled-components';
-import { Folder as FolderType, Topic, isFolder, fakeFolders, fakeRootTopics } from '../data';
+import { isFolder } from '../data';
 import { Folder, MessageSquare } from 'lucide-react';
 import { getDefaultTopic } from '@renderer/services/AssistantService';
-import { Assistant } from '@renderer/types';
+import { Assistant, Topic } from '@renderer/types';
+import { folderService, FolderWithChildren } from '@renderer/services/FolderService';
 
 const FoldersViewContainer = styled.div`
   padding: 10px;
@@ -61,8 +62,17 @@ interface FoldersViewProps {
 
 const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) => {
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+  const [folders, setFolders] = useState<FolderWithChildren[]>([]);
+  const [rootTopics, setRootTopics] = useState<Topic[]>([]);
+
+  const fetchData = async () => {
+    const { rootFolders, rootTopics } = await folderService.getFolderTree();
+    setFolders(rootFolders);
+    setRootTopics(rootTopics);
+  };
 
   useEffect(() => {
+    fetchData();
     const savedKeys = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (savedKeys) {
       setExpandedKeys(JSON.parse(savedKeys));
@@ -77,10 +87,16 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
     setExpandedKeys(keys);
   };
 
-  const handleMenuClick = (info: { key: string }, nodeId: string) => {
+  const handleMenuClick = async (info: { key: string }, nodeId: string | null) => {
     if (info.key === 'new-topic') {
       const newTopic = getDefaultTopic(activeAssistant.id, nodeId);
       addTopic(newTopic);
+    } else if (info.key === 'new-folder') {
+      const folderName = prompt('Enter new folder name:');
+      if (folderName) {
+        await folderService.addFolder(folderName, nodeId);
+        fetchData();
+      }
     } else {
       console.log(`Action: ${info.key}, Folder ID: ${nodeId}`);
     }
@@ -95,7 +111,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
     </Menu>
   );
 
-  const transformData = (items: (FolderType | Topic)[]): DataNode[] => {
+  const transformData = (items: (FolderWithChildren | Topic)[]): DataNode[] => {
     return items.map(item => {
       if (isFolder(item)) {
         return {
@@ -116,11 +132,9 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
   };
 
   const titleRenderer = (node: DataNode) => {
-    // Topics (leaves) don't get a context menu
     if (node.isLeaf) {
       return <span>{node.title}</span>;
     }
-    // Folders get a context menu
     return (
       <Dropdown overlay={menu(node.key as string)} trigger={['contextMenu']}>
         <span>{node.title}</span>
@@ -128,7 +142,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
     );
   };
 
-  const treeData = transformData(fakeFolders);
+  const treeData = transformData(folders);
 
   const onSelect = (selectedKeys: React.Key[], info: any) => {
     console.log('Selected Tree Node:', info.node);
@@ -143,7 +157,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
       <div>
         <h4>Root Topics</h4>
         <RootTopicList>
-          {fakeRootTopics.map(topic => (
+          {rootTopics.map(topic => (
             <RootTopicItem key={topic.id} onClick={() => onTopicClick(topic)}>
               <MessageSquare size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }}/>
               {topic.name}
@@ -151,7 +165,10 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
           ))}
         </RootTopicList>
       </div>
-      <h4>Folders</h4>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h4>Folders</h4>
+        <button onClick={() => handleMenuClick({ key: 'new-folder' }, null)}>+</button>
+      </div>
       <Tree
         showIcon
         onSelect={onSelect}
