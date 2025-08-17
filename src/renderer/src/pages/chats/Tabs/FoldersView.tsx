@@ -7,6 +7,7 @@ import { Folder, MessageSquare } from 'lucide-react';
 import { getDefaultTopic } from '@renderer/services/AssistantService';
 import { Assistant, Topic } from '@renderer/types';
 import { folderService, FolderWithChildren } from '@renderer/services/FolderService';
+import TextEditPopup from '@renderer/components/Popups/TextEditPopup';
 
 const FoldersViewContainer = styled.div`
   padding: 10px;
@@ -92,9 +93,16 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
       const newTopic = getDefaultTopic(activeAssistant.id, nodeId);
       addTopic(newTopic);
     } else if (info.key === 'new-folder') {
-      const folderName = prompt('Enter new folder name:');
-      if (folderName) {
-        await folderService.addFolder(folderName, nodeId);
+      const folderName = await TextEditPopup.show({
+        text: 'New Folder',
+        modalProps: {
+          title: 'Create New Folder',
+          okText: 'Create',
+        },
+        showTranslate: false,
+      });
+      if (folderName && folderName.trim()) {
+        await folderService.addFolder(folderName.trim(), nodeId);
         fetchData();
       }
     } else {
