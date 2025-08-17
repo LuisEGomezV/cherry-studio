@@ -66,12 +66,14 @@ interface FoldersViewProps {
   activeAssistant: Assistant;
 }
 
-const TopicItem = ({ topic, onSelect, onDelete, onDoubleClick, isEditing, editingName, setEditingName, handleEditKeyDown, handleRename }) => {
+const TopicItem = ({ topic, onSelect, onDelete, onRename }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingName, setEditingName] = useState(topic.name);
   const deleteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDeleteClick = (e) => {
+  const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isConfirmingDelete) {
       onDelete(topic);
@@ -80,6 +82,22 @@ const TopicItem = ({ topic, onSelect, onDelete, onDoubleClick, isEditing, editin
       deleteTimerRef.current = setTimeout(() => {
         setIsConfirmingDelete(false);
       }, 2000);
+    }
+  };
+
+  const handleRename = () => {
+    if (editingName.trim() && editingName.trim() !== topic.name) {
+      onRename(topic, editingName.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleRename();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setEditingName(topic.name);
     }
   };
 
@@ -94,7 +112,7 @@ const TopicItem = ({ topic, onSelect, onDelete, onDoubleClick, isEditing, editin
   return (
     <RootTopicItem
       onClick={onSelect}
-      onDoubleClick={onDoubleClick}
+      onDoubleClick={() => setIsEditing(true)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
@@ -107,8 +125,8 @@ const TopicItem = ({ topic, onSelect, onDelete, onDoubleClick, isEditing, editin
           type="text"
           value={editingName}
           onChange={(e) => setEditingName(e.target.value)}
-          onKeyDown={(e) => handleEditKeyDown(e, topic.id, false)}
-          onBlur={() => handleRename(topic.id, false)}
+          onKeyDown={handleEditKeyDown}
+          onBlur={handleRename}
           autoFocus
           style={{ width: '100%', border: '1px solid var(--color-primary)', borderRadius: '4px' }}
         />
@@ -133,8 +151,6 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [folders, setFolders] = useState<FolderWithChildren[]>([]);
   const [rootTopics, setRootTopics] = useState<Topic[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
 
   const fetchData = async () => {
     const { rootFolders, rootTopics } = await folderService.getFolderTree();
@@ -185,26 +201,9 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
     </Menu>
   );
 
-  const handleRename = async (id: string, isFolder: boolean) => {
-    if (editingName.trim()) {
-      if (isFolder) {
-        await folderService.updateFolder(id, { name: editingName.trim() });
-      } else {
-        await TopicManager.updateTopic(id, { name: editingName.trim() });
-      }
-      fetchData();
-    }
-    setEditingId(null);
-    setEditingName('');
-  };
-
-  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, isFolder: boolean) => {
-    if (e.key === 'Enter') {
-      handleRename(id, isFolder);
-    } else if (e.key === 'Escape') {
-      setEditingId(null);
-      setEditingName('');
-    }
+  const handleTopicRename = async (topic: Topic, newName: string) => {
+    await TopicManager.updateTopic(topic.id, { name: newName });
+    fetchData();
   };
 
   const transformData = (items: (FolderWithChildren | Topic)[]): DataNode[] => {
@@ -229,38 +228,12 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
   };
 
   const titleRenderer = (node: DataNode & { topic?: Topic }) => {
-    if (editingId === node.key) {
-      return (
-        <input
-          type="text"
-          value={editingName}
-          onChange={(e) => setEditingName(e.target.value)}
-          onKeyDown={(e) => handleEditKeyDown(e, node.key as string, !node.isLeaf)}
-          onBlur={() => handleRename(node.key as string, !node.isLeaf)}
-          autoFocus
-          style={{ width: '100%', border: '1px solid var(--color-primary)', borderRadius: '4px' }}
-        />
-      );
-    }
-
     if (node.isLeaf && node.topic) {
-      return (
-        <TopicItem
-          topic={node.topic}
-          onSelect={() => onTopicClick(node.topic)}
-          onDelete={() => { removeTopic(node.topic); fetchData(); }}
-          onDoubleClick={() => { setEditingId(node.key as string); setEditingName(node.title as string); }}
-          isEditing={editingId === node.key}
-          editingName={editingName}
-          setEditingName={setEditingName}
-          handleEditKeyDown={handleEditKeyDown}
-          handleRename={handleRename}
-        />
-      );
+      return <TopicItem topic={node.topic} onSelect={() => onTopicClick(node.topic)} onDelete={() => { removeTopic(node.topic); fetchData(); }} onRename={handleTopicRename} />;
     }
     return (
       <Dropdown overlay={menu(node.key as string)} trigger={['contextMenu']}>
-        <span onDoubleClick={() => { setEditingId(node.key as string); setEditingName(node.title as string); }}>{node.title}</span>
+        <span>{node.title}</span>
       </Dropdown>
     );
   };
@@ -288,12 +261,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, active
               topic={topic}
               onSelect={() => onTopicClick(topic)}
               onDelete={() => { removeTopic(topic); fetchData(); }}
-              onDoubleClick={() => { setEditingId(topic.id); setEditingName(topic.name); }}
-              isEditing={editingId === topic.id}
-              editingName={editingName}
-              setEditingName={setEditingName}
-              handleEditKeyDown={(e) => handleEditKeyDown(e, topic.id, false)}
-              handleRename={() => handleRename(topic.id, false)}
+              onRename={handleTopicRename}
             />
           ))}
         </RootTopicList>
