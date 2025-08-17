@@ -10,6 +10,7 @@ interface Props {
   activeTopic: Topic
   setActiveAssistant: (assistant: Assistant) => void
   setActiveTopic: (topic: Topic) => void
+  addTopic: (topic: Topic) => void
   position: 'left' | 'right'
   forceToSeeAllTab?: boolean
   style?: React.CSSProperties
@@ -17,7 +18,9 @@ interface Props {
 
 const ChatsTabs: FC<Props> = ({
   position,
-  style
+  style,
+  addTopic,
+  activeAssistant
 }) => {
   const { isLeftNavbar } = useNavbarPosition()
 
@@ -33,7 +36,7 @@ const ChatsTabs: FC<Props> = ({
       style={{ ...border, ...style }}
       className={classNames('home-tabs', { right: position === 'right' })}>
       <TabContent className="home-tabs-content">
-        <FoldersView />
+        <FoldersView addTopic={addTopic} activeAssistant={activeAssistant} />
       </TabContent>
     </Container>
   )

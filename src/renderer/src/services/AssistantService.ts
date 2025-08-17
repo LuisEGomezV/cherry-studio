@@ -79,10 +79,11 @@ export function getDefaultAssistantSettings() {
   return store.getState().assistants.defaultAssistant.settings
 }
 
-export function getDefaultTopic(assistantId: string): Topic {
+export function getDefaultTopic(assistantId: string, folderId: string | null = null): Topic {
   return {
     id: uuid(),
     assistantId,
+    folderId,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     name: i18n.t('chat.default.topic.name'),

@@ -185,6 +185,7 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  folderId?: string | null
 }
 
 export type User = {

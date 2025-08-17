@@ -6,17 +6,28 @@ import { Dexie, type EntityTable } from 'dexie'
 import { upgradeToV5, upgradeToV7, upgradeToV8 } from './upgrades'
 
 // Database declaration (move this to its own module also)
+export interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  assistantId?: string;
+  createdAt: number;
+  updatedAt: number;
+  order: number;
+}
+
 export const db = new Dexie('CherryStudio', {
   chromeTransactionDurability: 'strict'
 }) as Dexie & {
   files: EntityTable<FileMetadata, 'id'>
-  topics: EntityTable<{ id: string; messages: NewMessage[] }, 'id'> // Correct type for topics
+  topics: EntityTable<{ id: string; messages: NewMessage[], folderId: string | null }, 'id'>
   settings: EntityTable<{ id: string; value: any }, 'id'>
   knowledge_notes: EntityTable<KnowledgeItem, 'id'>
   translate_history: EntityTable<TranslateHistory, 'id'>
   quick_phrases: EntityTable<QuickPhrase, 'id'>
-  message_blocks: EntityTable<MessageBlock, 'id'> // Correct type for message_blocks
+  message_blocks: EntityTable<MessageBlock, 'id'>
   translate_languages: EntityTable<CustomTranslateLanguage, 'id'>
+  folders: EntityTable<Folder, 'id'>
 }
 
 db.version(1).stores({
@@ -100,6 +111,18 @@ db.version(9).stores({
   translate_languages: '&id, langCode',
   quick_phrases: 'id',
   message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
+})
+
+db.version(10).stores({
+  files: 'id, name, origin_name, path, size, ext, type, created_at, count',
+  topics: '&id, folderId',
+  settings: '&id, value',
+  knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
+  translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
+  translate_languages: '&id, langCode',
+  quick_phrases: 'id',
+  message_blocks: 'id, messageId, file.id',
+  folders: '&id, parentId, order'
 })
 
 export default db

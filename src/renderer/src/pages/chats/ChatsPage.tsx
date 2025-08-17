@@ -1,4 +1,4 @@
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -26,6 +26,7 @@ const ChatsPage: FC = () => {
   const state = location.state
 
   const [activeAssistant, _setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
+  const { addTopic } = useAssistant(activeAssistant?.id)
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
   const dispatch = useDispatch()
@@ -105,6 +106,7 @@ const ChatsPage: FC = () => {
             activeTopic={activeTopic}
             setActiveAssistant={setActiveAssistant}
             setActiveTopic={setActiveTopic}
+            addTopic={addTopic}
             position="left"
           />
         )}

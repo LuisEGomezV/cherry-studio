@@ -4,6 +4,8 @@ import type { DataNode } from 'antd/es/tree';
 import styled from 'styled-components';
 import { Folder as FolderType, Topic, isFolder, fakeFolders, fakeRootTopics } from '../data';
 import { Folder, MessageSquare } from 'lucide-react';
+import { getDefaultTopic } from '@renderer/services/AssistantService';
+import { Assistant } from '@renderer/types';
 
 const FoldersViewContainer = styled.div`
   padding: 10px;
@@ -52,7 +54,12 @@ const RootTopicItem = styled.li`
 
 const LOCAL_STORAGE_KEY = 'chats-folder-expanded-keys';
 
-const FoldersView: React.FC = () => {
+interface FoldersViewProps {
+  addTopic: (topic: Topic) => void;
+  activeAssistant: Assistant;
+}
+
+const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) => {
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
 
   useEffect(() => {
@@ -71,7 +78,12 @@ const FoldersView: React.FC = () => {
   };
 
   const handleMenuClick = (info: { key: string }, nodeId: string) => {
-    console.log(`Action: ${info.key}, Folder ID: ${nodeId}`);
+    if (info.key === 'new-topic') {
+      const newTopic = getDefaultTopic(activeAssistant.id, nodeId);
+      addTopic(newTopic);
+    } else {
+      console.log(`Action: ${info.key}, Folder ID: ${nodeId}`);
+    }
   };
 
   const menu = (nodeId: string) => (
