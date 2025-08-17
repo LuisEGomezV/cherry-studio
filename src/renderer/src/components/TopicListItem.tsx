@@ -1,5 +1,5 @@
-import { DeleteIcon } from '@renderer/components/Icons';
-import { Topic } from '@renderer/types';
+import { DeleteIcon } from './Icons';
+import { Topic } from '../types';
 import { MessageSquare, XIcon } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
