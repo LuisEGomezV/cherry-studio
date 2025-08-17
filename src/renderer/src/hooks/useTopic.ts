@@ -205,5 +205,9 @@ export const TopicManager = {
 
       await db.topics.update(id, topic)
     }
+  },
+
+  async updateTopic(id: string, updates: Partial<Topic>) {
+    return db.topics.update(id, { ...updates, updatedAt: new Date().toISOString() });
   }
 }

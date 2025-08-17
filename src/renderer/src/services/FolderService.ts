@@ -51,6 +51,11 @@ class FolderService {
     return db.folders.toArray();
   }
 
+  async getAllFolderNames(): Promise<string[]> {
+    const allFolders = await db.folders.toArray();
+    return allFolders.map(f => f.name);
+  }
+
   async updateFolder(id: string, updates: Partial<Folder>): Promise<number> {
     return db.folders.update(id, { ...updates, updatedAt: Date.now() });
   }

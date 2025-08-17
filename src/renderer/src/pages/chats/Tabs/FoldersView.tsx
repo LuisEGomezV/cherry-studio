@@ -7,6 +7,7 @@ import { Folder, MessageSquare } from 'lucide-react';
 import { getDefaultTopic } from '@renderer/services/AssistantService';
 import { Assistant, Topic } from '@renderer/types';
 import { folderService, FolderWithChildren } from '@renderer/services/FolderService';
+import { TopicManager } from '@renderer/hooks/useTopic';
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup';
 
 const FoldersViewContainer = styled.div`
@@ -65,6 +66,8 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [folders, setFolders] = useState<FolderWithChildren[]>([]);
   const [rootTopics, setRootTopics] = useState<Topic[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const fetchData = async () => {
     const { rootFolders, rootTopics } = await folderService.getFolderTree();
@@ -93,18 +96,13 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
       const newTopic = getDefaultTopic(activeAssistant.id, nodeId);
       addTopic(newTopic);
     } else if (info.key === 'new-folder') {
-      const folderName = await TextEditPopup.show({
-        text: 'New Folder',
-        modalProps: {
-          title: 'Create New Folder',
-          okText: 'Create',
-        },
-        showTranslate: false,
-      });
-      if (folderName && folderName.trim()) {
-        await folderService.addFolder(folderName.trim(), nodeId);
-        fetchData();
+      const allFolderNames = await folderService.getAllFolderNames();
+      let n = 1;
+      while (allFolderNames.includes(`Untitled ${n}`)) {
+        n++;
       }
+      await folderService.addFolder(`Untitled ${n}`, nodeId);
+      fetchData();
     } else {
       console.log(`Action: ${info.key}, Folder ID: ${nodeId}`);
     }
@@ -139,13 +137,47 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
     });
   };
 
+  const handleRename = async (id: string, isFolder: boolean) => {
+    if (editingName.trim()) {
+      if (isFolder) {
+        await folderService.updateFolder(id, { name: editingName.trim() });
+      } else {
+        await TopicManager.updateTopic(id, { name: editingName.trim() });
+      }
+      fetchData();
+    }
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, isFolder: boolean) => {
+    if (e.key === 'Enter') {
+      handleRename(id, isFolder);
+    } else if (e.key === 'Escape') {
+      setEditingId(null);
+      setEditingName('');
+    }
+  };
+
   const titleRenderer = (node: DataNode) => {
+    if (editingId === node.key) {
+      return (
+        <input
+          type="text"
+          value={editingName}
+          onChange={(e) => setEditingName(e.target.value)}
+          onKeyDown={(e) => handleEditKeyDown(e, node.key as string, !node.isLeaf)}
+          onBlur={() => handleRename(node.key as string, !node.isLeaf)}
+          autoFocus
+        />
+      );
+    }
     if (node.isLeaf) {
       return <span>{node.title}</span>;
     }
     return (
       <Dropdown overlay={menu(node.key as string)} trigger={['contextMenu']}>
-        <span>{node.title}</span>
+        <span onDoubleClick={() => { setEditingId(node.key as string); setEditingName(node.title as string); }}>{node.title}</span>
       </Dropdown>
     );
   };
@@ -153,7 +185,9 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
   const treeData = transformData(folders);
 
   const onSelect = (selectedKeys: React.Key[], info: any) => {
-    console.log('Selected Tree Node:', info.node);
+    if (info.node.isLeaf) {
+      console.log('Selected Topic:', info.node);
+    }
   };
 
   const onTopicClick = (topic: Topic) => {
@@ -166,9 +200,22 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
         <h4>Root Topics</h4>
         <RootTopicList>
           {rootTopics.map(topic => (
-            <RootTopicItem key={topic.id} onClick={() => onTopicClick(topic)}>
-              <MessageSquare size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }}/>
-              {topic.name}
+            <RootTopicItem key={topic.id} onClick={() => onTopicClick(topic)} onDoubleClick={() => { setEditingId(topic.id); setEditingName(topic.name); }}>
+              {editingId === topic.id ? (
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => handleEditKeyDown(e, topic.id, false)}
+                  onBlur={() => handleRename(topic.id, false)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <MessageSquare size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }}/>
+                  {topic.name}
+                </>
+              )}
             </RootTopicItem>
           ))}
         </RootTopicList>
