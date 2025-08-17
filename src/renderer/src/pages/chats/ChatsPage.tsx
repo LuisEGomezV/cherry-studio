@@ -26,7 +26,7 @@ const ChatsPage: FC = () => {
   const state = location.state
 
   const [activeAssistant, _setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
-  const { addTopic } = useAssistant(activeAssistant?.id)
+  const { addTopic, removeTopic } = useAssistant(activeAssistant?.id)
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
   const dispatch = useDispatch()
@@ -107,6 +107,7 @@ const ChatsPage: FC = () => {
             setActiveAssistant={setActiveAssistant}
             setActiveTopic={setActiveTopic}
             addTopic={addTopic}
+            removeTopic={removeTopic}
             position="left"
           />
         )}

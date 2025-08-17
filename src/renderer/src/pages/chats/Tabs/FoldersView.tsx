@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tree, Dropdown, Menu } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import styled from 'styled-components';
 import { isFolder } from '../data';
-import { Folder, MessageSquare } from 'lucide-react';
+import { Folder, MessageSquare, XIcon } from 'lucide-react';
 import { getDefaultTopic } from '@renderer/services/AssistantService';
 import { Assistant, Topic } from '@renderer/types';
 import { folderService, FolderWithChildren } from '@renderer/services/FolderService';
 import { TopicManager } from '@renderer/hooks/useTopic';
-import TextEditPopup from '@renderer/components/Popups/TextEditPopup';
+import { DeleteIcon } from '@renderer/components/Icons';
 
 const FoldersViewContainer = styled.div`
   padding: 10px;
@@ -49,6 +49,9 @@ const RootTopicItem = styled.li`
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 
   &:hover {
     background-color: var(--color-background-soft-hover);
@@ -59,10 +62,74 @@ const LOCAL_STORAGE_KEY = 'chats-folder-expanded-keys';
 
 interface FoldersViewProps {
   addTopic: (topic: Topic) => void;
+  removeTopic: (topic: Topic) => void;
   activeAssistant: Assistant;
 }
 
-const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) => {
+const TopicItem = ({ topic, onSelect, onDelete, onDoubleClick, isEditing, editingName, setEditingName, handleEditKeyDown, handleRename }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDeleteClick = (e) => {
+    e.stopPropagation();
+    if (isConfirmingDelete) {
+      onDelete(topic);
+    } else {
+      setIsConfirmingDelete(true);
+      deleteTimerRef.current = setTimeout(() => {
+        setIsConfirmingDelete(false);
+      }, 2000);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <RootTopicItem
+      onClick={onSelect}
+      onDoubleClick={onDoubleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsConfirmingDelete(false);
+        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      }}
+    >
+      {isEditing ? (
+        <input
+          type="text"
+          value={editingName}
+          onChange={(e) => setEditingName(e.target.value)}
+          onKeyDown={(e) => handleEditKeyDown(e, topic.id, false)}
+          onBlur={() => handleRename(topic.id, false)}
+          autoFocus
+          style={{ width: '100%', border: '1px solid var(--color-primary)', borderRadius: '4px' }}
+        />
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <MessageSquare size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }}/>
+            {topic.name}
+          </div>
+          {isHovered && (
+            <button onClick={handleDeleteClick} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              {isConfirmingDelete ? <DeleteIcon size={14} /> : <XIcon size={14} />}
+            </button>
+          )}
+        </>
+      )}
+    </RootTopicItem>
+  );
+}
+
+const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, removeTopic, activeAssistant }) => {
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [folders, setFolders] = useState<FolderWithChildren[]>([]);
   const [rootTopics, setRootTopics] = useState<Topic[]>([]);
@@ -95,6 +162,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
     if (info.key === 'new-topic') {
       const newTopic = getDefaultTopic(activeAssistant.id, nodeId);
       addTopic(newTopic);
+      fetchData();
     } else if (info.key === 'new-folder') {
       const allFolderNames = await folderService.getAllFolderNames();
       let n = 1;
@@ -116,26 +184,6 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
       <Menu.Item key="delete">Delete</Menu.Item>
     </Menu>
   );
-
-  const transformData = (items: (FolderWithChildren | Topic)[]): DataNode[] => {
-    return items.map(item => {
-      if (isFolder(item)) {
-        return {
-          title: item.name,
-          key: item.id,
-          icon: <Folder size={16} />,
-          children: item.children.length > 0 ? transformData(item.children) : [],
-        };
-      } else {
-        return {
-          title: item.name,
-          key: item.id,
-          icon: <MessageSquare size={16} />,
-          isLeaf: true,
-        };
-      }
-    });
-  };
 
   const handleRename = async (id: string, isFolder: boolean) => {
     if (editingName.trim()) {
@@ -159,7 +207,28 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
     }
   };
 
-  const titleRenderer = (node: DataNode) => {
+  const transformData = (items: (FolderWithChildren | Topic)[]): DataNode[] => {
+    return items.map(item => {
+      if (isFolder(item)) {
+        return {
+          title: item.name,
+          key: item.id,
+          icon: <Folder size={16} />,
+          children: item.children.length > 0 ? transformData(item.children) : [],
+        };
+      } else {
+        return {
+          title: item.name,
+          key: item.id,
+          icon: <MessageSquare size={16} />,
+          isLeaf: true,
+          topic: item,
+        };
+      }
+    });
+  };
+
+  const titleRenderer = (node: DataNode & { topic?: Topic }) => {
     if (editingId === node.key) {
       return (
         <input
@@ -169,11 +238,25 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
           onKeyDown={(e) => handleEditKeyDown(e, node.key as string, !node.isLeaf)}
           onBlur={() => handleRename(node.key as string, !node.isLeaf)}
           autoFocus
+          style={{ width: '100%', border: '1px solid var(--color-primary)', borderRadius: '4px' }}
         />
       );
     }
-    if (node.isLeaf) {
-      return <span>{node.title}</span>;
+
+    if (node.isLeaf && node.topic) {
+      return (
+        <TopicItem
+          topic={node.topic}
+          onSelect={() => onTopicClick(node.topic)}
+          onDelete={() => { removeTopic(node.topic); fetchData(); }}
+          onDoubleClick={() => { setEditingId(node.key as string); setEditingName(node.title as string); }}
+          isEditing={editingId === node.key}
+          editingName={editingName}
+          setEditingName={setEditingName}
+          handleEditKeyDown={handleEditKeyDown}
+          handleRename={handleRename}
+        />
+      );
     }
     return (
       <Dropdown overlay={menu(node.key as string)} trigger={['contextMenu']}>
@@ -186,7 +269,7 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
 
   const onSelect = (selectedKeys: React.Key[], info: any) => {
     if (info.node.isLeaf) {
-      console.log('Selected Topic:', info.node);
+      onTopicClick(info.node.topic);
     }
   };
 
@@ -200,23 +283,18 @@ const FoldersView: React.FC<FoldersViewProps> = ({ addTopic, activeAssistant }) 
         <h4>Root Topics</h4>
         <RootTopicList>
           {rootTopics.map(topic => (
-            <RootTopicItem key={topic.id} onClick={() => onTopicClick(topic)} onDoubleClick={() => { setEditingId(topic.id); setEditingName(topic.name); }}>
-              {editingId === topic.id ? (
-                <input
-                  type="text"
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  onKeyDown={(e) => handleEditKeyDown(e, topic.id, false)}
-                  onBlur={() => handleRename(topic.id, false)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <MessageSquare size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }}/>
-                  {topic.name}
-                </>
-              )}
-            </RootTopicItem>
+            <TopicItem
+              key={topic.id}
+              topic={topic}
+              onSelect={() => onTopicClick(topic)}
+              onDelete={() => { removeTopic(topic); fetchData(); }}
+              onDoubleClick={() => { setEditingId(topic.id); setEditingName(topic.name); }}
+              isEditing={editingId === topic.id}
+              editingName={editingName}
+              setEditingName={setEditingName}
+              handleEditKeyDown={(e) => handleEditKeyDown(e, topic.id, false)}
+              handleRename={() => handleRename(topic.id, false)}
+            />
           ))}
         </RootTopicList>
       </div>
