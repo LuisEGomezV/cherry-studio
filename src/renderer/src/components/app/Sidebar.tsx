@@ -18,6 +18,7 @@ import {
   CircleHelp,
   FileSearch,
   Folder,
+  Folders,
   Languages,
   LayoutGrid,
   MessageSquare,
@@ -148,7 +149,7 @@ const MainMenus: FC = () => {
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
-    chats: <Folder size={18} className="icon" />,
+    chats: <Folders size={18} className="icon" />,
     agents: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
