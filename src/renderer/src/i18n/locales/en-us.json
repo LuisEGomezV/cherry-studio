@@ -222,6 +222,9 @@
     },
     "title": "Assistants"
   },
+  "chats": {
+    "title": "Chats"
+  },
   "auth": {
     "error": "API key automatically obtained failed, please get it manually",
     "get_key": "Get",
@@ -3586,6 +3589,7 @@
   "title": {
     "agents": "Agents",
     "apps": "Apps",
+    "chats": "Chats",
     "code": "Code",
     "files": "Files",
     "home": "Home",
