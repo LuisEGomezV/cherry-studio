@@ -139,12 +139,13 @@ export const getThemeModeLabel = (key: string): string => {
 
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
+  chatting: 'sidebar.chatting',
   agents: 'agents.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
-  minapp: 'minapp.title',
+  minapp: 'title.apps',
   knowledge: 'knowledge.title',
-  files: 'files.title'
+  files: 'title.files'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {

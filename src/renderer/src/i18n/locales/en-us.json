@@ -3583,6 +3583,13 @@
       "title": "Page Zoom"
     }
   },
+  "chatting": {
+    "title": "Chatting",
+    "coming_soon": "Chatting feature is coming soon!"
+  },
+  "sidebar": {
+    "chatting": "Chatting"
+  },
   "title": {
     "agents": "Agents",
     "apps": "Apps",
