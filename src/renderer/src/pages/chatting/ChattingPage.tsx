@@ -8,6 +8,7 @@ import styled, { keyframes } from 'styled-components'
 import { Folder } from 'lucide-react'
 import FolderTree from '../../components/folder/FolderTree'
 import { mockFolders } from '../../mocks/folderData'
+import Navbar from '../home/Navbar'
 
 import Chat from '../home/Chat'
 
@@ -51,34 +52,44 @@ const ChattingPage: FC = () => {
   }
 
   return (
-    <Container>
-      {/* Left sidebar with folder tree */}
-      <Sidebar>
-        <SidebarHeader>
-          <Folder size={16} />
-          <SidebarTitle>Folders</SidebarTitle>
-        </SidebarHeader>
-        <FolderTreeContainer>
-          <FolderTree 
-            data={mockFolders} 
-            onSelect={handleSelectItem}
-            selectedId={activeTopic?.id}
-          />
-        </FolderTreeContainer>
-      </Sidebar>
+    <PageContainer>
+      <Navbar 
+        activeAssistant={activeAssistant}
+        activeTopic={activeTopic}
+        setActiveTopic={handleSetActiveTopic}
+        setActiveAssistant={handleSetActiveAssistant}
+        position="left"
+      />
       
-      {/* Main content area */}
-      <MainContent>
-        <ChatContainer>
-          <Chat 
-            assistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveTopic={handleSetActiveTopic}
-            setActiveAssistant={handleSetActiveAssistant}
-          />
-        </ChatContainer>
-      </MainContent>
-    </Container>
+      <MainContainer>
+        {/* Left sidebar with folder tree */}
+        <Sidebar>
+          <SidebarHeader>
+            <Folder size={16} />
+            <SidebarTitle>Folders</SidebarTitle>
+          </SidebarHeader>
+          <FolderTreeContainer>
+            <FolderTree 
+              data={mockFolders} 
+              onSelect={handleSelectItem}
+              selectedId={activeTopic?.id}
+            />
+          </FolderTreeContainer>
+        </Sidebar>
+        
+        {/* Main content area */}
+        <MainContent>
+          <ChatContainer>
+            <Chat 
+              assistant={activeAssistant}
+              activeTopic={activeTopic}
+              setActiveTopic={handleSetActiveTopic}
+              setActiveAssistant={handleSetActiveAssistant}
+            />
+          </ChatContainer>
+        </MainContent>
+      </MainContainer>
+    </PageContainer>
   )
 }
 
@@ -107,14 +118,22 @@ const Spinner = styled.div`
   animation: ${spin} 1s linear infinite;
 `
 
-const Container = styled.div`
+const PageContainer = styled.div`
   display: flex;
-  flex: 1;
-  flex-direction: row;
+  flex-direction: column;
+  height: 100vh;
   overflow: hidden;
   min-width: ${MIN_WINDOW_WIDTH}px;
   min-height: ${MIN_WINDOW_HEIGHT}px;
   background-color: var(--color-bg);
+`
+
+const MainContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  overflow: hidden;
+  height: calc(100vh - var(--navbar-height));
 `
 
 const Sidebar = styled.div`
@@ -153,7 +172,6 @@ const MainContent = styled.div`
   flex-direction: column;
   flex: 1;
   min-width: ${SECOND_MIN_WINDOW_WIDTH}px;
-  height: 100vh;
   overflow: hidden;
 `
 
