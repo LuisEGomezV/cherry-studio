@@ -5,6 +5,9 @@ import { Assistant, Topic } from '@renderer/types'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
+import { Folder } from 'lucide-react'
+import FolderTree from '../../components/folder/FolderTree'
+import { mockFolders } from '../../mocks/folderData'
 
 import Chat from '../home/Chat'
 
@@ -33,6 +36,11 @@ const ChattingPage: FC = () => {
     setActiveAssistant(assistant)
   }, [])
 
+  const handleSelectItem = useCallback((item: any) => {
+    console.log('Selected item:', item)
+    // Handle item selection (e.g., load chat, navigate to folder)
+  }, [])
+
   if (!activeAssistant || !activeTopic) {
     return (
       <LoadingContainer>
@@ -44,8 +52,20 @@ const ChattingPage: FC = () => {
 
   return (
     <Container>
-      {/* Empty left side as per requirements */}
-      <EmptySidebar />
+      {/* Left sidebar with folder tree */}
+      <Sidebar>
+        <SidebarHeader>
+          <Folder size={16} />
+          <SidebarTitle>Folders</SidebarTitle>
+        </SidebarHeader>
+        <FolderTreeContainer>
+          <FolderTree 
+            data={mockFolders} 
+            onSelect={handleSelectItem}
+            selectedId={activeTopic?.id}
+          />
+        </FolderTreeContainer>
+      </Sidebar>
       
       {/* Main content area */}
       <MainContent>
@@ -97,12 +117,35 @@ const Container = styled.div`
   background-color: var(--color-bg);
 `
 
-const EmptySidebar = styled.div`
-  width: 0;
+const Sidebar = styled.div`
+  width: 240px;
+  min-width: 240px;
   border-right: 1px solid var(--color-border);
   background-color: var(--color-bg-secondary);
-  transition: width 0.2s ease;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+`
+
+const SidebarHeader = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  color: var(--color-text);
+  gap: 8px;
+`
+
+const SidebarTitle = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+`
+
+const FolderTreeContainer = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 4px;
 `
 
 const MainContent = styled.div`
