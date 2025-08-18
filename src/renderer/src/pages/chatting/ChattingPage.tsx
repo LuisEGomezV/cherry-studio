@@ -1,5 +1,6 @@
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { useShowAssistants } from '@renderer/hooks/useStore'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { Assistant, Topic } from '@renderer/types'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -21,6 +22,7 @@ const ChattingPage: FC = () => {
     state?.assistant || (assistants.length > 0 ? assistants[0] : undefined)
   )
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant?.id || '', state?.topic)
+  const { showAssistants } = useShowAssistants()
 
   // Handle any necessary side effects
   useEffect(() => {
@@ -63,7 +65,7 @@ const ChattingPage: FC = () => {
       
       <MainContainer>
         {/* Left sidebar with folder tree */}
-        <Sidebar>
+        <Sidebar style={{ display: showAssistants ? 'flex' : 'none' }}>
           <SidebarHeader>
             <Folder size={16} />
             <SidebarTitle>Folders</SidebarTitle>
@@ -138,12 +140,13 @@ const MainContainer = styled.div`
 
 const Sidebar = styled.div`
   width: 240px;
-  min-width: 240px;
+  height: 100%;
   border-right: 1px solid var(--color-border);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-subtle);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: all 0.2s ease;
 `
 
 const SidebarHeader = styled.div`
