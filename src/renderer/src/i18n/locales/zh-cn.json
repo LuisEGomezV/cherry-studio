@@ -646,7 +646,10 @@
       "title": "话题",
       "unpin": "取消固定"
     },
-    "translate": "翻译"
+    "translate": "翻译",
+    "folder": {
+      "new": "新建文件夹"
+    }
   },
   "code": {
     "auto_update_to_latest": "检查更新并安装最新版本",

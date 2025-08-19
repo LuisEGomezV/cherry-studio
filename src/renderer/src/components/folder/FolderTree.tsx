@@ -1,11 +1,17 @@
-import { ChevronDown, ChevronRight, Folder, MessageSquare, Archive, FolderOpen } from 'lucide-react';
-import { FC, useState } from 'react';
+import { ChevronDown, ChevronRight, Folder, MessageSquare, Archive, FolderOpen, Trash2, Pencil, MessageSquarePlus, FolderPlus } from 'lucide-react';
+import { FC, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { FolderItem } from '../../types/folder';
+import { Dropdown } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 interface FolderTreeProps {
   data: FolderItem[];
   onSelect?: (item: FolderItem) => void;
+  onNewChat?: (parentId?: string) => void;
+  onNewFolder?: (parentId?: string) => void;
+  onRename?: (item: FolderItem) => void;
+  onDelete?: (item: FolderItem) => void;
   selectedId?: string;
   level?: number;
 }
@@ -26,10 +32,16 @@ const getIcon = (type: string, isOpen?: boolean) => {
 const FolderTree: FC<FolderTreeProps> = ({
   data,
   onSelect,
+  onNewChat,
+  onNewFolder,
+  onRename,
+  onDelete,
   selectedId,
   level = 0,
 }) => {
+  const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
+  const [contextMenuTarget, setContextMenuTarget] = useState<FolderItem | null>(null);
 
   const toggleFolder = (id: string) => {
     const updateItems = (items: FolderItem[]): FolderItem[] => {
@@ -52,8 +64,64 @@ const FolderTree: FC<FolderTreeProps> = ({
     if (item.type === 'folder') {
       toggleFolder(item.id);
     }
-    onSelect?.(item);
-  };
+    onSelect?.(item);  };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, item: FolderItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuTarget(item);
+  }, []);
+
+  const handleMenuClick = useCallback(({ key, domEvent }: { key: string, domEvent: { stopPropagation: () => void } }) => {
+    domEvent.stopPropagation();
+    if (!contextMenuTarget) return;
+
+    switch (key) {
+      case 'new-chat':
+        onNewChat?.(contextMenuTarget.id);
+        break;
+      case 'new-folder':
+        onNewFolder?.(contextMenuTarget.id);
+        break;
+      case 'rename':
+        onRename?.(contextMenuTarget);
+        break;
+      case 'delete':
+        onDelete?.(contextMenuTarget);
+        break;
+    }
+    setContextMenuTarget(null);
+  }, [contextMenuTarget, onNewChat, onNewFolder, onRename, onDelete]);
+
+  const menuItems = [
+    {
+      key: 'new-chat',
+      label: t('chat.topics.new'),
+      icon: <MessageSquarePlus size={14} />,
+    },
+    {
+      key: 'new-folder',
+      label: t('chat.folder.new'),
+      icon: <FolderPlus size={14} />,
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'rename',
+      label: t('chat.topics.edit.title'),
+      icon: <Pencil size={14} />,
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'delete',
+      label: t('common.delete'),
+      danger: true,
+      icon: <Trash2 size={14} style={{ color: 'inherit' }} />,
+    },
+  ];
 
   const renderTree = (items: FolderItem[], currentLevel: number) => {
     return items.map((item) => {
@@ -64,11 +132,18 @@ const FolderTree: FC<FolderTreeProps> = ({
 
       return (
         <div key={item.id}>
-          <FolderItemContainer
-            $level={currentLevel}
-            $isSelected={isSelected}
-            onClick={(e) => handleItemClick(e, item)}
+          <Dropdown 
+            menu={{ items: menuItems, onClick: handleMenuClick }}
+            trigger={['contextMenu']}
+            open={contextMenuTarget?.id === item.id}
+            onOpenChange={(open) => !open && setContextMenuTarget(null)}
           >
+            <FolderItemContainer
+              $level={currentLevel}
+              $isSelected={isSelected}
+              onClick={(e) => handleItemClick(e, item)}
+              onContextMenu={(e) => handleContextMenu(e, item)}
+            >
             <FolderItemContent>
               {isFolder && hasChildren ? (
                 <ChevronWrapper>
@@ -86,7 +161,8 @@ const FolderTree: FC<FolderTreeProps> = ({
               </IconWrapper>
               <FolderName>{item.name}</FolderName>
             </FolderItemContent>
-          </FolderItemContainer>
+            </FolderItemContainer>
+          </Dropdown>
           {isFolder && isOpen && hasChildren && (
             <ChildrenContainer>
               {renderTree(item.children || [], currentLevel + 1)}

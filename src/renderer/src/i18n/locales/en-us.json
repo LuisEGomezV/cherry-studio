@@ -646,7 +646,10 @@
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
-    "translate": "Translate"
+    "translate": "Translate",
+    "folder": {
+      "new": "New Folder"
+    }
   },
   "code": {
     "auto_update_to_latest": "Automatically update to latest version",

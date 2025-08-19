@@ -646,7 +646,10 @@
       "title": "トピック",
       "unpin": "固定解除"
     },
-    "translate": "翻訳"
+    "translate": "翻訳",
+    "folder": {
+      "new": "新しいフォルダ"
+    }
   },
   "code": {
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
