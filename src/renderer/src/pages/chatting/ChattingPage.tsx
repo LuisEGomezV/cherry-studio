@@ -129,7 +129,7 @@ const SidebarContainer = styled.div`
   width: var(--assistants-width);
   height: 100%;
   overflow-y: auto;
-  border-right: 1px solid var(--color-border);
+  border-right: 0.5px solid var(--color-border);
 `
 
 export default ChattingPage
