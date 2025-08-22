@@ -24,10 +24,6 @@ const SelectAssistantButton: FC<Props> = ({ assistant, activeTopic, setActiveAss
   const defaultModel = getDefaultModel()
 
   const assistantName = useMemo(() => assistant.name || 'Assistant', [assistant.name])
-  const fullAssistantName = useMemo(
-    () => (assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName),
-    [assistant.emoji, assistantName]
-  )
 
   const onSelect = async (selected: Assistant) => {
     if (!activeTopic || !selected || selected.id === assistant.id) return
@@ -56,7 +52,7 @@ const SelectAssistantButton: FC<Props> = ({ assistant, activeTopic, setActiveAss
         ) : assistantIconType === 'emoji' ? (
           <EmojiIcon emoji={assistant.emoji || getLeadingEmoji(assistant.name)} />
         ) : null}
-        <AssistantName title={fullAssistantName}>{fullAssistantName}</AssistantName>
+        <AssistantName title={assistantName}>{assistantName}</AssistantName>
       </ButtonContent>
       <ChevronsUpDown size={14} color="var(--color-icon)" />
     </DropdownButton>

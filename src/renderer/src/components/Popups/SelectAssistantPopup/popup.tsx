@@ -102,7 +102,7 @@ const PopupContainer: React.FC<Props> = ({ currentAssistantId, resolve }) => {
                 ) : assistantIconType === 'emoji' ? (
                   <EmojiIcon emoji={a.emoji || getLeadingEmoji(a.name)} />
                 ) : null}
-                <Name title={a.name}>{a.emoji ? `${a.emoji} ${a.name}` : a.name}</Name>
+                <Name title={a.name}>{a.name}</Name>
               </Left>
             </Item>
           )
