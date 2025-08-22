@@ -89,8 +89,8 @@ const ChattingPage: FC = () => {
       .filter((t) => !assignedSet.has(t.id))
       .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
 
-    // Return only root contents, always open
-    return [...unassignedExtras, ...rootTopics, ...rootChildren]
+    // Return only root contents, always open. Folders first, then topics (root-assigned), then unassigned extras
+    return [...rootChildren, ...rootTopics, ...unassignedExtras]
   }, [folders, topicById, allTopics])
 
   // Handle any necessary side effects
