@@ -18,7 +18,6 @@ import ChattingTopicItem from './components/ChattingTopicItem'
 import { nanoid } from 'nanoid'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { db } from '@renderer/databases'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 const ChattingPage: FC = () => {
   const { assistants } = useAssistants()
@@ -220,16 +219,7 @@ const ChattingPage: FC = () => {
     [activeAssistant, defaultAssistant, assistants, dispatch, folders, setActiveTopic, setActiveAssistant, hasSliceTopics, allAssistantTopics]
   )
 
-  // Listen to global ADD_NEW_TOPIC events (emitted by ChattingNavbar button) and create a new chat
-  useEffect(() => {
-    const off = EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, () => {
-      // Create under current selection/root by default
-      handleNewChat()
-    })
-    return () => {
-      off()
-    }
-  }, [handleNewChat])
+  // Note: do not listen to global Home events here to avoid duplicate creations
 
   const handleDelete = useCallback(
     (item: UITreeItem) => {
@@ -268,6 +258,7 @@ const ChattingPage: FC = () => {
         setActiveTopic={handleSetActiveTopic}
         setActiveAssistant={handleSetActiveAssistant}
         position="left"
+        onCreateTopic={() => handleNewChat()}
       />
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         {showAssistants && (

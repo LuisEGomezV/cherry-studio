@@ -15,14 +15,13 @@ import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search, FolderPlus } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from '../home/components/AssistantsDrawer'
 import SelectModelButton from '../home/components/SelectModelButton'
-import SelectAssistantButton from '../home/components/SelectAssistantButton'
 import UpdateAppButton from '../home/components/UpdateAppButton'
-import { foldersActions } from '@renderer/store/folders'
+import { foldersActions, ROOT_FOLDER_ID } from '@renderer/store/folders'
 import { nanoid } from 'nanoid'
 
 interface Props {
@@ -31,25 +30,17 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
+  onCreateTopic?: () => void
 }
 
-const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic, onCreateTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
-  // Also resolve the assistant assigned to the current topic
-  const { assistant: topicAssistant } = useAssistant(activeTopic.assistantId)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const isFullscreen = useFullscreen()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
 
-  // Keep activeAssistant in sync with the activeTopic's assigned assistant
-  useEffect(() => {
-    if (!activeTopic || !topicAssistant) return
-    if (topicAssistant.id !== activeAssistant.id) {
-      setActiveAssistant(topicAssistant)
-    }
-  }, [activeTopic?.assistantId, topicAssistant?.id, activeAssistant.id, setActiveAssistant])
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -89,7 +80,7 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
             </NavbarIcon>
           </Tooltip>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <Tooltip title={t('New Folder') as string} mouseEnterDelay={0.8}>
+            <Tooltip title={t('chat.folder.new', 'New Folder') as string} mouseEnterDelay={0.8}>
               <NavbarIcon
                 onClick={() => {
                   const now = new Date().toISOString()
@@ -97,8 +88,8 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
                   dispatch(
                     foldersActions.addFolder({
                       id,
-                      name: t('New Folder') as string,
-                      parentFolderId: null,
+                      name: t('chat.folder.new', 'New Folder') as string,
+                      parentFolderId: ROOT_FOLDER_ID,
                       topicIds: [],
                       createdAt: now,
                       updatedAt: now
@@ -111,7 +102,7 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
               </NavbarIcon>
             </Tooltip>
             <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-              <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
+              <NavbarIcon onClick={() => (onCreateTopic ? onCreateTopic() : EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC))} style={{ marginRight: 5 }}>
                 <MessageSquareDiff size={18} />
               </NavbarIcon>
             </Tooltip>
@@ -135,12 +126,7 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
             </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
-          <SelectAssistantButton
-            assistant={assistant}
-            activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
-            setActiveTopic={setActiveTopic}
-          />
+          {/* assistant selector handled elsewhere; keep navbar minimal */}
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
