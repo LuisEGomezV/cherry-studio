@@ -311,7 +311,8 @@ const ItemContainer = styled.div`
   justify-content: space-between;
   position: relative;
   cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+  /* Take full width of parent (indent container controls left padding) */
+  width: 100%;
   .menu { opacity: 0; color: var(--color-text-3); }
   &:hover { background-color: var(--color-list-item-hover); transition: background-color 0.1s; .menu { opacity: 1; } }
   &.active { background-color: var(--color-list-item); box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); .menu { opacity: 1; &:hover{ color: var(--color-text-2);} } }
@@ -322,15 +323,18 @@ const NameRow = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
-  justify-content: space-between;
+  gap: 8px;
+  justify-content: flex-start;
 `
 
 const Name = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
+  /* Flexible label with desired width that can shrink */
+  flex: 1 1 220px;
+  min-width: 0; /* allow flex item to shrink below content width for ellipsis */
+  display: block;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   position: relative;
   will-change: background-position, width;
@@ -396,6 +400,8 @@ const IconBtn = styled.div`
   align-items: center;
   min-width: 20px;
   min-height: 20px;
+  margin-left: auto; /* keep on the far right */
+  flex: 0 0 auto; /* don't shrink */
   .anticon { font-size: 12px; }
 `
 
