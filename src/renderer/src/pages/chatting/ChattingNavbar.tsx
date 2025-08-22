@@ -20,6 +20,7 @@ import styled from 'styled-components'
 
 import AssistantsDrawer from '../home/components/AssistantsDrawer'
 import SelectModelButton from '../home/components/SelectModelButton'
+import SelectAssistantButton from '../home/components/SelectAssistantButton'
 import UpdateAppButton from '../home/components/UpdateAppButton'
 import { foldersActions } from '@renderer/store/folders'
 import { nanoid } from 'nanoid'
@@ -124,6 +125,12 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
             </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
+          <SelectAssistantButton
+            assistant={assistant}
+            activeTopic={activeTopic}
+            setActiveAssistant={setActiveAssistant}
+            setActiveTopic={setActiveTopic}
+          />
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
