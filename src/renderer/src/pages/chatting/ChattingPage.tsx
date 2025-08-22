@@ -10,7 +10,7 @@ import type { FolderItem as UITreeItem } from '@renderer/types/folder'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
-import Navbar from '../home/Navbar'
+import ChattingNavbar from './ChattingNavbar'
 import Chat from '../home/Chat'
 import FolderTree from '../../components/folder/FolderTree'
 
@@ -33,7 +33,8 @@ const ChattingPage: FC = () => {
 
   // Fallback: if topics slice is empty, use topics from assistants (legacy path)
   const allAssistantTopics = assistants.flatMap((a) => a.topics || [])
-  const allTopics = (sliceTopics && sliceTopics.length > 0) ? sliceTopics : allAssistantTopics
+  const hasSliceTopics = !!(sliceTopics && sliceTopics.length > 0)
+  const allTopics = hasSliceTopics ? sliceTopics : allAssistantTopics
   const topicById = new Map(allTopics.map((t) => [t.id, t]))
 
   const buildFolderTreeData = useCallback((): UITreeItem[] => {
@@ -64,9 +65,20 @@ const ChattingPage: FC = () => {
 
     const roots = (byParent.get(null) || []).map((rf) => makeNode(rf.id)).filter(Boolean) as UITreeItem[]
 
-    // Compute unassigned topics: if no folders exist yet, treat all topics as unassigned
+    // Compute unassigned topics:
+    // - If no folders exist yet, treat all topics as unassigned
+    // - If folders exist but topics slice is empty (using assistant fallback), compute unassigned by excluding assigned IDs
     const hasAnyFolders = folders.length > 0
-    const unassigned = hasAnyFolders ? unassignedTopicsFromSelector : allTopics
+    let unassigned = allTopics
+    if (hasAnyFolders) {
+      if (hasSliceTopics) {
+        unassigned = unassignedTopicsFromSelector
+      } else {
+        const assignedIdSet = new Set<string>()
+        for (const f of folders) for (const id of f.topicIds || []) assignedIdSet.add(id)
+        unassigned = allTopics.filter((t) => !assignedIdSet.has(t.id))
+      }
+    }
 
     // Pseudo node for unassigned topics (backend root is invisible; UI needs a place to click them)
     const unassignedNode: UITreeItem | null = unassigned.length
@@ -80,7 +92,7 @@ const ChattingPage: FC = () => {
       : null
 
     return unassignedNode ? [unassignedNode, ...roots] : roots
-  }, [folders, allTopics, unassignedTopicsFromSelector, topicById])
+  }, [folders, allTopics, unassignedTopicsFromSelector, topicById, hasSliceTopics])
 
   // Handle any necessary side effects
   useEffect(() => {
@@ -109,15 +121,13 @@ const ChattingPage: FC = () => {
 
   return (
     <Container id="home-page">
-      {isLeftNavbar && (
-        <Navbar 
-          activeAssistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={handleSetActiveTopic}
-          setActiveAssistant={handleSetActiveAssistant}
-          position="left"
-        />
-      )}
+      <ChattingNavbar
+        activeAssistant={activeAssistant}
+        activeTopic={activeTopic}
+        setActiveTopic={handleSetActiveTopic}
+        setActiveAssistant={handleSetActiveAssistant}
+        position="left"
+      />
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         {showAssistants && (
           <SidebarContainer>

@@ -14,14 +14,15 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search, FolderPlus } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
-import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectModelButton from './components/SelectModelButton'
-import UpdateAppButton from './components/UpdateAppButton'
- 
+import AssistantsDrawer from '../home/components/AssistantsDrawer'
+import SelectModelButton from '../home/components/SelectModelButton'
+import UpdateAppButton from '../home/components/UpdateAppButton'
+import { foldersActions } from '@renderer/store/folders'
+import { nanoid } from 'nanoid'
 
 interface Props {
   activeAssistant: Assistant
@@ -31,7 +32,7 @@ interface Props {
   position: 'left' | 'right'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const isFullscreen = useFullscreen()
@@ -79,6 +80,27 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
               <MessageSquareDiff size={18} />
+            </NavbarIcon>
+          </Tooltip>
+          <Tooltip title={t('New Folder') as string} mouseEnterDelay={0.8}>
+            <NavbarIcon
+              onClick={() => {
+                const now = new Date().toISOString()
+                const id = nanoid()
+                dispatch(
+                  foldersActions.addFolder({
+                    id,
+                    name: t('New Folder') as string,
+                    parentFolderId: null,
+                    topicIds: [],
+                    createdAt: now,
+                    updatedAt: now
+                  })
+                )
+              }}
+              style={{ marginRight: 8 }}
+            >
+              <FolderPlus size={18} />
             </NavbarIcon>
           </Tooltip>
         </NavbarLeft>
@@ -173,4 +195,4 @@ const NarrowIcon = styled(NavbarIcon)`
   }
 `
 
-export default HeaderNavbar
+export default ChattingNavbar
