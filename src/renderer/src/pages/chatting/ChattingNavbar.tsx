@@ -77,32 +77,34 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
-          <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
-              <MessageSquareDiff size={18} />
-            </NavbarIcon>
-          </Tooltip>
-          <Tooltip title={t('New Folder') as string} mouseEnterDelay={0.8}>
-            <NavbarIcon
-              onClick={() => {
-                const now = new Date().toISOString()
-                const id = nanoid()
-                dispatch(
-                  foldersActions.addFolder({
-                    id,
-                    name: t('New Folder') as string,
-                    parentFolderId: null,
-                    topicIds: [],
-                    createdAt: now,
-                    updatedAt: now
-                  })
-                )
-              }}
-              style={{ marginRight: 8 }}
-            >
-              <FolderPlus size={18} />
-            </NavbarIcon>
-          </Tooltip>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Tooltip title={t('New Folder') as string} mouseEnterDelay={0.8}>
+              <NavbarIcon
+                onClick={() => {
+                  const now = new Date().toISOString()
+                  const id = nanoid()
+                  dispatch(
+                    foldersActions.addFolder({
+                      id,
+                      name: t('New Folder') as string,
+                      parentFolderId: null,
+                      topicIds: [],
+                      createdAt: now,
+                      updatedAt: now
+                    })
+                  )
+                }}
+                style={{ marginRight: 8 }}
+              >
+                <FolderPlus size={18} />
+              </NavbarIcon>
+            </Tooltip>
+            <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+              <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
+                <MessageSquareDiff size={18} />
+              </NavbarIcon>
+            </Tooltip>
+          </div>
         </NavbarLeft>
       )}
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
