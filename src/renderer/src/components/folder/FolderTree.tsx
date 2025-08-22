@@ -333,7 +333,7 @@ const ChildrenContainer = styled.div<{ $level: number }>`
     top: 2px;
     bottom: 2px;
     /* Align the guide roughly within the next-level indent gutter */
-    left: ${(props) => 8 + props.$level * 16 + 12}px;
+    left: ${(props) => 8 + props.$level * 16 + 10}px;
     width: 1px;
     background: var(--color-primary);
     opacity: 0.35;
