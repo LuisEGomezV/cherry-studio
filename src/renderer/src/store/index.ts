@@ -28,6 +28,7 @@ import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
 import translate from './translate'
+import { topicsReducer } from './topics'
 import websearch from './websearch'
 
 const logger = loggerService.withContext('Store')
@@ -52,6 +53,7 @@ const rootReducer = combineReducers({
   selectionStore,
   tabs,
   preprocess,
+  topics: topicsReducer,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
@@ -81,7 +83,7 @@ const persistedReducer = persistReducer(
  * Call storeSyncService.subscribe() in the window's entryPoint.tsx
  */
 storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/']
+  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'topics/']
 })
 
 const store = configureStore({

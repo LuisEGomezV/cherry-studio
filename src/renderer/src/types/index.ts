@@ -14,6 +14,10 @@ export type Assistant = {
   name: string
   prompt: string
   knowledge_bases?: KnowledgeBase[]
+  topicIds?: string[]
+  /**
+   * @deprecated Nested topics are being decoupled. Use topicIds + topics slice instead.
+   */
   topics: Topic[]
   type: string
   emoji?: string
