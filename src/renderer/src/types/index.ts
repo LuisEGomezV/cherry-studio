@@ -191,6 +191,19 @@ export type Topic = {
   isNameManuallyEdited?: boolean
 }
 
+// Folder entity used for storing folders and topic assignments
+export type Folder = {
+  id: string
+  name: string
+  // Parent folder reference; null for root-level folders (no parent)
+  parentFolderId?: string | null
+  // Topic IDs assigned to this folder
+  topicIds?: string[]
+  icon?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export type User = {
   id: string
   name: string
