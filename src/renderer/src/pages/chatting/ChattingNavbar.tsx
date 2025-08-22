@@ -136,12 +136,14 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
             </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
-          <SelectAssistantButton
-            assistant={assistant}
-            activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
-            setActiveTopic={setActiveTopic}
-          />
+          <div style={{ marginLeft: 12 }}>
+            <SelectAssistantButton
+              assistant={assistant}
+              activeTopic={activeTopic}
+              setActiveAssistant={setActiveAssistant}
+              setActiveTopic={setActiveTopic}
+            />
+          </div>
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
