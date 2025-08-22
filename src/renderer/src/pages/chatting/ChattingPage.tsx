@@ -3,7 +3,10 @@ import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useShowAssistants } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
-import { mockFolders } from '@renderer/mocks/folderData'
+import { useAppSelector } from '@renderer/store'
+import { selectAllFolders, selectUnassignedTopics } from '@renderer/store/folders'
+import { selectAllTopics } from '@renderer/store/topics'
+import type { FolderItem as UITreeItem } from '@renderer/types/folder'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
@@ -22,6 +25,62 @@ const ChattingPage: FC = () => {
     state?.assistant || (assistants.length > 0 ? assistants[0] : undefined)
   )
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant?.id || '', state?.topic)
+
+  // Real folders and topics from store
+  const folders = useAppSelector(selectAllFolders)
+  const sliceTopics = useAppSelector(selectAllTopics)
+  const unassignedTopicsFromSelector = useAppSelector(selectUnassignedTopics)
+
+  // Fallback: if topics slice is empty, use topics from assistants (legacy path)
+  const allAssistantTopics = assistants.flatMap((a) => a.topics || [])
+  const allTopics = (sliceTopics && sliceTopics.length > 0) ? sliceTopics : allAssistantTopics
+  const topicById = new Map(allTopics.map((t) => [t.id, t]))
+
+  const buildFolderTreeData = useCallback((): UITreeItem[] => {
+    const byParent = new Map<string | null, typeof folders>()
+    for (const f of folders) {
+      const key = f.parentFolderId ?? null
+      const arr = byParent.get(key) || []
+      arr.push(f)
+      byParent.set(key, arr)
+    }
+
+    const makeNode = (folderId: string): UITreeItem | null => {
+      const f = folders.find((x) => x.id === folderId)
+      if (!f) return null
+      const childFolders = (byParent.get(f.id) || []).map((cf) => makeNode(cf.id)).filter(Boolean) as UITreeItem[]
+      const folderTopics = (f.topicIds || [])
+        .map((id) => topicById.get(id))
+        .filter(Boolean)
+        .map((t) => ({ id: t!.id, name: t!.name, type: 'chat' as const }))
+      return {
+        id: f.id,
+        name: f.name,
+        type: 'folder',
+        isOpen: true,
+        children: [...childFolders, ...folderTopics]
+      }
+    }
+
+    const roots = (byParent.get(null) || []).map((rf) => makeNode(rf.id)).filter(Boolean) as UITreeItem[]
+
+    // Compute unassigned topics: if no folders exist yet, treat all topics as unassigned
+    const hasAnyFolders = folders.length > 0
+    const unassigned = hasAnyFolders ? unassignedTopicsFromSelector : allTopics
+
+    // Pseudo node for unassigned topics (backend root is invisible; UI needs a place to click them)
+    const unassignedNode: UITreeItem | null = unassigned.length
+      ? {
+          id: 'root-unassigned',
+          name: 'Unassigned',
+          type: 'folder',
+          isOpen: true,
+          children: unassigned.map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
+        }
+      : null
+
+    return unassignedNode ? [unassignedNode, ...roots] : roots
+  }, [folders, allTopics, unassignedTopicsFromSelector, topicById])
 
   // Handle any necessary side effects
   useEffect(() => {
@@ -62,10 +121,13 @@ const ChattingPage: FC = () => {
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         {showAssistants && (
           <SidebarContainer>
-            <FolderTree 
-              data={mockFolders}
+            <FolderTree
+              data={buildFolderTreeData()}
               onSelect={(item) => {
-                console.log('Selected item:', item);
+                if (item.type === 'chat') {
+                  const t = topicById.get(item.id)
+                  if (t) setActiveTopic(t)
+                }
               }}
             />
           </SidebarContainer>

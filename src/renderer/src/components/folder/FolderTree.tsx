@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Folder, MessageSquare, Archive, FolderOpen, Trash2, Pencil, MessageSquarePlus, FolderPlus } from 'lucide-react';
-import { FC, useState, useCallback } from 'react';
+import { FC, useState, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { FolderItem } from '../../types/folder';
 import { Dropdown } from 'antd';
@@ -42,6 +42,11 @@ const FolderTree: FC<FolderTreeProps> = ({
   const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
   const [contextMenuTarget, setContextMenuTarget] = useState<FolderItem | null>(null);
+
+  // Keep internal state in sync with external data updates
+  useEffect(() => {
+    setItems(data);
+  }, [data]);
 
   const toggleFolder = (id: string) => {
     const updateItems = (items: FolderItem[]): FolderItem[] => {
