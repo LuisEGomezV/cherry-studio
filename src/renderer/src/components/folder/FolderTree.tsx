@@ -334,10 +334,14 @@ const ChildrenContainer = styled.div<{ $level: number }>`
     bottom: 2px;
     /* Align the guide roughly within the next-level indent gutter */
     left: ${(props) => 8 + props.$level * 16 + 10}px;
-    width: 1px;
+    width: 2px;
     background: var(--color-primary);
     opacity: 0.35;
     pointer-events: none;
+    /* Make the line slightly thinner than 2px while staying crisper than 1px */
+    transform: scaleX(0.7);
+    transform-origin: left;
+    will-change: transform;
   }
 `;
 
