@@ -21,6 +21,7 @@ import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { BrushCleaning, FolderOpen, HelpCircle, MenuIcon, PackagePlus, PinIcon, PinOffIcon, Save, UploadIcon, XIcon, Sparkles } from 'lucide-react'
 import { findIndex } from 'lodash'
 import store, { useAppDispatch } from '@renderer/store'
+import { foldersActions } from '@renderer/store/folders'
 import { setGenerating } from '@renderer/store/runtime'
 import { topicsActions } from '@renderer/store/topics'
 
@@ -93,6 +94,8 @@ const ChattingTopicItem: FC<Props> = ({ assistant: _assistant, topic, activeTopi
     removeTopic(tpc)
     // Also remove from topics slice so Chatting folder tree updates
     dispatch(topicsActions.removeTopicById(tpc.id))
+    // And clean up folder references everywhere
+    dispatch(foldersActions.removeTopicIds([tpc.id]))
   }, [assistant.topics, activeTopicId, onSwitchTopic, removeTopic, onClearMessages, dispatch])
 
   const onMoveTopic = useCallback(async (tpc: Topic, toAssistant: Assistant) => {

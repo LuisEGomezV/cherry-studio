@@ -48,6 +48,19 @@ const foldersSlice = createSlice({
         }
       }
     },
+    // Remove topicIds from all folders (used when a topic is deleted)
+    removeTopicIds: (state, action: PayloadAction<string[]>) => {
+      const removeIds = new Set(action.payload)
+      const now = new Date().toISOString()
+      const existing = Object.values(state.entities).filter(Boolean) as Folder[]
+      for (const f of existing) {
+        const before = f.topicIds || []
+        const after = before.filter((id) => !removeIds.has(id))
+        if (after.length !== before.length) {
+          foldersAdapter.updateOne(state, { id: f.id, changes: { topicIds: after, updatedAt: now } })
+        }
+      }
+    },
     addFolders: (state, action: PayloadAction<Folder[]>) => {
       foldersAdapter.addMany(state, action.payload.map(sanitizeFolder))
     },

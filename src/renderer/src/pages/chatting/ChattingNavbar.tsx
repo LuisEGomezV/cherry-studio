@@ -15,12 +15,13 @@ import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search, FolderPlus } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useEffect } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from '../home/components/AssistantsDrawer'
 import SelectModelButton from '../home/components/SelectModelButton'
 import UpdateAppButton from '../home/components/UpdateAppButton'
+import SelectAssistantButton from '../home/components/SelectAssistantButton'
 import { foldersActions, ROOT_FOLDER_ID } from '@renderer/store/folders'
 import { nanoid } from 'nanoid'
 
@@ -35,11 +36,20 @@ interface Props {
 
 const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic, onCreateTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
+  const { assistant: topicAssistant } = useAssistant(activeTopic.assistantId)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const isFullscreen = useFullscreen()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+
+  // Auto-sync navbar assistant with the active topic's assigned assistant
+  useEffect(() => {
+    if (!activeTopic || !topicAssistant) return
+    if (topicAssistant.id !== activeAssistant.id) {
+      setActiveAssistant(topicAssistant)
+    }
+  }, [activeTopic?.assistantId, topicAssistant?.id, activeAssistant.id, setActiveAssistant])
 
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
@@ -126,7 +136,12 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
             </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
-          {/* assistant selector handled elsewhere; keep navbar minimal */}
+          <SelectAssistantButton
+            assistant={assistant}
+            activeTopic={activeTopic}
+            setActiveAssistant={setActiveAssistant}
+            setActiveTopic={setActiveTopic}
+          />
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
