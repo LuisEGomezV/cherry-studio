@@ -14,6 +14,9 @@ interface FolderTreeProps {
   onDelete?: (item: FolderItem) => void;
   selectedId?: string;
   level?: number;
+  // Optional custom renderer for chat items (topics). When provided, chat items will be rendered
+  // using this function and will not use the default FolderTree item container or context menu.
+  renderChatItem?: (topicId: string) => React.ReactNode;
 }
 
 const getIcon = (type: string, isOpen?: boolean) => {
@@ -38,6 +41,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   onDelete,
   selectedId,
   level = 0,
+  renderChatItem,
 }) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
@@ -170,6 +174,16 @@ const FolderTree: FC<FolderTreeProps> = ({
       const isFolder = item.type === 'folder';
       const isSelected = selectedId === item.id;
       const isOpen = item.isOpen !== false; // Default to open if not specified
+
+      // If this is a chat item and a custom renderer is provided, render it directly
+      // without FolderTree's default container and context menu.
+      if (item.type === 'chat' && renderChatItem) {
+        return (
+          <div key={item.id}>
+            {renderChatItem(item.id)}
+          </div>
+        );
+      }
 
       return (
         <div key={item.id}>

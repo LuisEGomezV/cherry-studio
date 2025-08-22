@@ -16,6 +16,7 @@ import { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { topicsActions } from '@renderer/store/topics'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
@@ -81,6 +82,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       if (topic && name !== topic.name) {
         const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
         updateTopic(updatedTopic)
+        dispatch(topicsActions.updateTopic(updatedTopic))
         window.message.success(t('common.saved'))
       }
       setEditingTopicId(null)
@@ -151,8 +153,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     (topic: Topic) => {
       const updatedTopic = { ...topic, pinned: !topic.pinned }
       updateTopic(updatedTopic)
+      dispatch(topicsActions.updateTopic(updatedTopic))
     },
-    [updateTopic]
+    [updateTopic, dispatch]
   )
 
   const onDeleteTopic = useCallback(
@@ -208,6 +211,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
+                dispatch(topicsActions.updateTopic(updatedTopic))
               } else {
                 window.message?.error(t('message.error.fetchTopicName'))
               }
@@ -251,6 +255,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             (() => {
               const updatedTopic = { ...topic, prompt: prompt.trim() }
               updateTopic(updatedTopic)
+              dispatch(topicsActions.updateTopic(updatedTopic))
               topic.id === activeTopic.id && setActiveTopic(updatedTopic)
             })()
         }

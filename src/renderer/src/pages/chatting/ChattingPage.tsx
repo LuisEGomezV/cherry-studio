@@ -1,6 +1,6 @@
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -14,20 +14,26 @@ import styled, { keyframes } from 'styled-components'
 import ChattingNavbar from './ChattingNavbar'
 import Chat from '../home/Chat'
 import FolderTree from '../../components/folder/FolderTree'
+import ChattingTopicItem from './components/ChattingTopicItem'
 import { nanoid } from 'nanoid'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { db } from '@renderer/databases'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { t } from 'i18next'
 
 const ChattingPage: FC = () => {
   const { assistants } = useAssistants()
   const location = useLocation()
   const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
   const { isLeftNavbar } = useNavbarPosition()
+  const { showTopicTime } = useSettings()
   const { showAssistants } = useShowAssistants()
 
   const [activeAssistant, setActiveAssistant] = useState<Assistant | undefined>(
     state?.assistant || (assistants.length > 0 ? assistants[0] : undefined)
   )
+  // Track which folder is currently selected to target navbar-created topics
+  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(undefined)
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant?.id || '', state?.topic)
   const dispatch = useAppDispatch()
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
@@ -167,7 +173,7 @@ const ChattingPage: FC = () => {
       dispatch(
         foldersActions.addFolder({
           id,
-          name: 'New Folder',
+          name: t('chat.folder.new') as string,
           parentFolderId: isValidParent ? parentId! : ROOT_FOLDER_ID,
           topicIds: [],
           childFolderIds: [],
@@ -217,6 +223,17 @@ const ChattingPage: FC = () => {
     [activeAssistant, defaultAssistant, assistants, dispatch, folders, setActiveTopic, setActiveAssistant, hasSliceTopics, allAssistantTopics]
   )
 
+  // Listen to global ADD_NEW_TOPIC events (emitted by ChattingNavbar button) and create a new chat
+  useEffect(() => {
+    const off = EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, () => {
+      // Create under currently selected folder, fallback to root inside handler
+      handleNewChat(selectedFolderId)
+    })
+    return () => {
+      off()
+    }
+  }, [handleNewChat, selectedFolderId])
+
   const handleDelete = useCallback(
     (item: UITreeItem) => {
       if (item.type !== 'folder') return
@@ -264,12 +281,30 @@ const ChattingPage: FC = () => {
                 if (item.type === 'chat') {
                   const t = topicById.get(item.id)
                   if (t) setActiveTopic(t)
+                  // When a chat is selected, reflect its folder as current selection
+                  if (t?.folderId) setSelectedFolderId(t.folderId)
+                }
+                if (item.type === 'folder') {
+                  setSelectedFolderId(item.id)
                 }
               }}
               onNewFolder={handleNewFolder}
               onNewChat={handleNewChat}
               onRename={handleRename}
               onDelete={handleDelete}
+              renderChatItem={(id) => {
+                const t = topicById.get(id)
+                if (!t || !activeAssistant) return null
+                return (
+                  <ChattingTopicItem
+                    assistant={activeAssistant}
+                    topic={t}
+                    activeTopicId={activeTopic.id}
+                    onSwitchTopic={handleSetActiveTopic}
+                    showTime={showTopicTime}
+                  />
+                )
+              }}
             />
           </SidebarContainer>
         )}
