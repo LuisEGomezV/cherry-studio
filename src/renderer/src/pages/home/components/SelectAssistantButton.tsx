@@ -1,14 +1,15 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { Assistant, Topic } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Dropdown } from 'antd'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Button } from 'antd'
+import { ChevronsUpDown } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import styled from 'styled-components'
+import SelectAssistantPopup from '@renderer/components/Popups/SelectAssistantPopup'
 
 interface Props {
   assistant: Assistant
@@ -18,7 +19,6 @@ interface Props {
 }
 
 const SelectAssistantButton: FC<Props> = ({ assistant, activeTopic, setActiveAssistant, setActiveTopic }) => {
-  const { assistants } = useAssistants()
   const { moveTopic } = useAssistant(assistant.id)
   const { assistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
@@ -38,52 +38,28 @@ const SelectAssistantButton: FC<Props> = ({ assistant, activeTopic, setActiveAss
     setActiveTopic({ ...activeTopic, assistantId: selected.id })
   }
 
-  const menuItems = [
-    ...assistants.map((a) => ({
-      key: a.id,
-      label: (
-        <MenuItem>
-          <ItemLeft>
-            {assistantIconType === 'model' ? (
-              <ModelAvatar model={a.model || defaultModel} size={18} />
-            ) : assistantIconType === 'emoji' ? (
-              <EmojiIcon emoji={a.emoji || getLeadingEmoji(a.name)} />
-            ) : null}
-            <span className="truncate">{a.emoji ? `${a.emoji} ${a.name}` : a.name}</span>
-          </ItemLeft>
-          {a.id === assistant.id && <Check size={14} color="var(--color-icon)" />}
-        </MenuItem>
-      ),
-      onClick: () => onSelect(a)
-    })),
-    { type: 'divider' as const },
-    {
-      key: 'assistant-settings',
-      label: (
-        <MenuItem>
-          <span>Assistant settings</span>
-        </MenuItem>
-      ),
-      onClick: () => {
-        // No-op for now
-      }
-    }
-  ]
-
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={["click"]} placement="bottomLeft">
-      <DropdownButton size="small" type="text">
-        <ButtonContent>
-          {assistantIconType === 'model' ? (
-            <ModelAvatar model={assistant.model || defaultModel} size={20} />
-          ) : assistantIconType === 'emoji' ? (
-            <EmojiIcon emoji={assistant.emoji || getLeadingEmoji(assistant.name)} />
-          ) : null}
-          <AssistantName title={fullAssistantName}>{fullAssistantName}</AssistantName>
-        </ButtonContent>
-        <ChevronsUpDown size={14} color="var(--color-icon)" />
-      </DropdownButton>
-    </Dropdown>
+    <DropdownButton
+      size="small"
+      type="text"
+      onClick={async (e) => {
+        ;(e.currentTarget as HTMLElement).blur()
+        const selected = await SelectAssistantPopup.show({ currentAssistantId: assistant.id })
+        if (selected) {
+          onSelect(selected)
+        }
+      }}
+    >
+      <ButtonContent>
+        {assistantIconType === 'model' ? (
+          <ModelAvatar model={assistant.model || defaultModel} size={20} />
+        ) : assistantIconType === 'emoji' ? (
+          <EmojiIcon emoji={assistant.emoji || getLeadingEmoji(assistant.name)} />
+        ) : null}
+        <AssistantName title={fullAssistantName}>{fullAssistantName}</AssistantName>
+      </ButtonContent>
+      <ChevronsUpDown size={14} color="var(--color-icon)" />
+    </DropdownButton>
   )
 }
 
@@ -113,25 +89,6 @@ const AssistantName = styled.span`
   white-space: nowrap;
 `
 
-const MenuItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-`
-
-const ItemLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 220px;
-  }
-`
+// Old Dropdown menu styles removed since we now use a centered popup
 
 export default SelectAssistantButton
