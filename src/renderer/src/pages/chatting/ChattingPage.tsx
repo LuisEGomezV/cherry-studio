@@ -19,7 +19,6 @@ import { nanoid } from 'nanoid'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { db } from '@renderer/databases'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { t } from 'i18next'
 
 const ChattingPage: FC = () => {
   const { assistants } = useAssistants()
@@ -32,8 +31,6 @@ const ChattingPage: FC = () => {
   const [activeAssistant, setActiveAssistant] = useState<Assistant | undefined>(
     state?.assistant || (assistants.length > 0 ? assistants[0] : undefined)
   )
-  // Track which folder is currently selected to target navbar-created topics
-  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(undefined)
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant?.id || '', state?.topic)
   const dispatch = useAppDispatch()
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
@@ -173,7 +170,7 @@ const ChattingPage: FC = () => {
       dispatch(
         foldersActions.addFolder({
           id,
-          name: t('chat.folder.new') as string,
+          name: 'New Folder',
           parentFolderId: isValidParent ? parentId! : ROOT_FOLDER_ID,
           topicIds: [],
           childFolderIds: [],
@@ -226,13 +223,13 @@ const ChattingPage: FC = () => {
   // Listen to global ADD_NEW_TOPIC events (emitted by ChattingNavbar button) and create a new chat
   useEffect(() => {
     const off = EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, () => {
-      // Create under currently selected folder, fallback to root inside handler
-      handleNewChat(selectedFolderId)
+      // Create under current selection/root by default
+      handleNewChat()
     })
     return () => {
       off()
     }
-  }, [handleNewChat, selectedFolderId])
+  }, [handleNewChat])
 
   const handleDelete = useCallback(
     (item: UITreeItem) => {
@@ -281,11 +278,6 @@ const ChattingPage: FC = () => {
                 if (item.type === 'chat') {
                   const t = topicById.get(item.id)
                   if (t) setActiveTopic(t)
-                  // When a chat is selected, reflect its folder as current selection
-                  if (t?.folderId) setSelectedFolderId(t.folderId)
-                }
-                if (item.type === 'folder') {
-                  setSelectedFolderId(item.id)
                 }
               }}
               onNewFolder={handleNewFolder}

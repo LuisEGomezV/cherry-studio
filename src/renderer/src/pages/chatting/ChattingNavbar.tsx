@@ -78,7 +78,7 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
             </NavbarIcon>
           </Tooltip>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <Tooltip title={t('chat.folder.new') as string} mouseEnterDelay={0.8}>
+            <Tooltip title={t('New Folder') as string} mouseEnterDelay={0.8}>
               <NavbarIcon
                 onClick={() => {
                   const now = new Date().toISOString()
@@ -86,7 +86,7 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
                   dispatch(
                     foldersActions.addFolder({
                       id,
-                      name: t('chat.folder.new') as string,
+                      name: t('New Folder') as string,
                       parentFolderId: null,
                       topicIds: [],
                       createdAt: now,
