@@ -347,5 +347,9 @@ const ChildrenContainer = styled.div<{ $level: number }>`
 
 const ChatItemContainer = styled.div<{ $level: number }>`
   padding: 6px 8px 6px ${(props) => 8 + props.$level * 16}px;
-  margin: 2px 0;
+  margin: 0px 0;
+  /* Slightly overlap consecutive items to reduce the empty space between them */
+  & + & {
+    margin-top: -2px;
+  }
 `;
