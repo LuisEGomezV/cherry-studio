@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Folder, MessageSquare, Archive, FolderOpen, Trash2, Pencil, MessageSquarePlus, FolderPlus } from 'lucide-react';
-import { FC, useState, useCallback, useEffect } from 'react';
+import { FC, useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FolderItem } from '../../types/folder';
 import { Dropdown } from 'antd';
@@ -42,6 +42,9 @@ const FolderTree: FC<FolderTreeProps> = ({
   const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
   const [contextMenuTarget, setContextMenuTarget] = useState<FolderItem | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Keep internal state in sync with external data updates
   useEffect(() => {
@@ -89,7 +92,14 @@ const FolderTree: FC<FolderTreeProps> = ({
         onNewFolder?.(contextMenuTarget.id);
         break;
       case 'rename':
-        onRename?.(contextMenuTarget);
+        // Start inline editing for folders only
+        if (contextMenuTarget.type === 'folder') {
+          setEditingId(contextMenuTarget.id);
+          setEditValue(contextMenuTarget.name || '');
+          // focus handled in effect below
+        } else {
+          onRename?.(contextMenuTarget);
+        }
         break;
       case 'delete':
         onDelete?.(contextMenuTarget);
@@ -97,6 +107,32 @@ const FolderTree: FC<FolderTreeProps> = ({
     }
     setContextMenuTarget(null);
   }, [contextMenuTarget, onNewChat, onNewFolder, onRename, onDelete]);
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined
+    if (editingId) {
+      // slight delay to ensure input rendered
+      t = setTimeout(() => inputRef.current?.focus(), 0)
+    }
+    return () => {
+      if (t) clearTimeout(t)
+    }
+  }, [editingId])
+
+  const commitRename = useCallback((item: FolderItem) => {
+    const name = editValue.trim();
+    if (name && name !== item.name) {
+      onRename?.({ ...item, name });
+    }
+    setEditingId(null);
+    setEditValue('');
+  }, [editValue, onRename]);
+
+  const cancelRename = useCallback(() => {
+    setEditingId(null);
+    setEditValue('');
+  }, []);
 
   const menuItems = [
     {
@@ -164,7 +200,21 @@ const FolderTree: FC<FolderTreeProps> = ({
               <IconWrapper>
                 {getIcon(item.type, isFolder && isOpen)}
               </IconWrapper>
-              <FolderName>{item.name}</FolderName>
+              {editingId === item.id && isFolder ? (
+                <FolderEditInput
+                  ref={inputRef}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename(item);
+                    if (e.key === 'Escape') cancelRename();
+                  }}
+                  onBlur={() => commitRename(item)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <FolderName>{item.name}</FolderName>
+              )}
             </FolderItemContent>
             </FolderItemContainer>
           </Dropdown>
@@ -239,6 +289,23 @@ const FolderName = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`;
+
+const FolderEditInput = styled.input`
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-1);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 6px;
+  width: 100%;
+  outline: none;
+
+  &:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-alpha);
+  }
 `;
 
 const ChildrenContainer = styled.div`

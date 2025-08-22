@@ -179,6 +179,14 @@ const ChattingPage: FC = () => {
     [dispatch, folders]
   )
 
+  const handleRename = useCallback((item: UITreeItem) => {
+    if (item.type !== 'folder') return
+    const f = folders.find((x) => x.id === item.id)
+    if (!f) return
+    const updated = { ...f, name: item.name, updatedAt: new Date().toISOString() }
+    dispatch(foldersActions.updateFolder(updated))
+  }, [dispatch, folders])
+
   const handleNewChat = useCallback(
     async (parentId?: string) => {
       // Ensure we have an assistant: prefer active, else default, else first
@@ -260,6 +268,7 @@ const ChattingPage: FC = () => {
               }}
               onNewFolder={handleNewFolder}
               onNewChat={handleNewChat}
+              onRename={handleRename}
               onDelete={handleDelete}
             />
           </SidebarContainer>
