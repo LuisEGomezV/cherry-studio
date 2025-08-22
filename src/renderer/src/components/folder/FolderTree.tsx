@@ -179,9 +179,9 @@ const FolderTree: FC<FolderTreeProps> = ({
       // without FolderTree's default container and context menu.
       if (item.type === 'chat' && renderChatItem) {
         return (
-          <div key={item.id}>
+          <ChatItemContainer key={item.id} $level={currentLevel}>
             {renderChatItem(item.id)}
-          </div>
+          </ChatItemContainer>
         );
       }
 
@@ -233,7 +233,7 @@ const FolderTree: FC<FolderTreeProps> = ({
             </FolderItemContainer>
           </Dropdown>
           {isFolder && isOpen && hasChildren && (
-            <ChildrenContainer>
+            <ChildrenContainer $level={currentLevel}>
               {renderTree(item.children || [], currentLevel + 1)}
             </ChildrenContainer>
           )}
@@ -322,6 +322,26 @@ const FolderEditInput = styled.input`
   }
 `;
 
-const ChildrenContainer = styled.div`
+const ChildrenContainer = styled.div<{ $level: number }>`
+  position: relative;
   overflow: hidden;
+
+  /* Vertical guide line that wraps the children of a folder */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    /* Align the guide roughly within the next-level indent gutter */
+    left: ${(props) => 8 + props.$level * 16 + 12}px;
+    width: 1px;
+    background: var(--color-primary);
+    opacity: 0.35;
+    pointer-events: none;
+  }
+`;
+
+const ChatItemContainer = styled.div<{ $level: number }>`
+  padding: 6px 8px 6px ${(props) => 8 + props.$level * 16}px;
+  margin: 2px 0;
 `;
