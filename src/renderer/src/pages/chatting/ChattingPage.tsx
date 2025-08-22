@@ -3,9 +3,10 @@ import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useShowAssistants } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
-import { useAppSelector } from '@renderer/store'
-import { selectAllFolders, selectUnassignedTopics } from '@renderer/store/folders'
-import { selectAllTopics } from '@renderer/store/topics'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { foldersActions, selectAllFolders, ROOT_FOLDER_ID } from '@renderer/store/folders'
+import { topicsActions, selectAllTopics } from '@renderer/store/topics'
+import { addTopic as assistantsAddTopic } from '@renderer/store/assistants'
 import type { FolderItem as UITreeItem } from '@renderer/types/folder'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -13,6 +14,9 @@ import styled, { keyframes } from 'styled-components'
 import ChattingNavbar from './ChattingNavbar'
 import Chat from '../home/Chat'
 import FolderTree from '../../components/folder/FolderTree'
+import { nanoid } from 'nanoid'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { db } from '@renderer/databases'
 
 const ChattingPage: FC = () => {
   const { assistants } = useAssistants()
@@ -25,11 +29,12 @@ const ChattingPage: FC = () => {
     state?.assistant || (assistants.length > 0 ? assistants[0] : undefined)
   )
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant?.id || '', state?.topic)
+  const dispatch = useAppDispatch()
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
 
   // Real folders and topics from store
   const folders = useAppSelector(selectAllFolders)
   const sliceTopics = useAppSelector(selectAllTopics)
-  const unassignedTopicsFromSelector = useAppSelector(selectUnassignedTopics)
 
   // Fallback: if topics slice is empty, use topics from assistants (legacy path)
   const allAssistantTopics = assistants.flatMap((a) => a.topics || [])
@@ -38,18 +43,20 @@ const ChattingPage: FC = () => {
   const topicById = new Map(allTopics.map((t) => [t.id, t]))
 
   const buildFolderTreeData = useCallback((): UITreeItem[] => {
-    const byParent = new Map<string | null, typeof folders>()
+    // Build from real root folder: show its contents (topics and child folders), not the root node itself
+    const byParent = new Map<string, string[]>()
     for (const f of folders) {
-      const key = f.parentFolderId ?? null
-      const arr = byParent.get(key) || []
-      arr.push(f)
-      byParent.set(key, arr)
+      const parent = f.parentFolderId ?? ''
+      const arr = byParent.get(parent) || []
+      arr.push(f.id)
+      byParent.set(parent, arr)
     }
 
     const makeNode = (folderId: string): UITreeItem | null => {
       const f = folders.find((x) => x.id === folderId)
       if (!f) return null
-      const childFolders = (byParent.get(f.id) || []).map((cf) => makeNode(cf.id)).filter(Boolean) as UITreeItem[]
+      const childFolderIds = byParent.get(f.id) || []
+      const childFolders = childFolderIds.map((id) => makeNode(id)).filter(Boolean) as UITreeItem[]
       const folderTopics = (f.topicIds || [])
         .map((id) => topicById.get(id))
         .filter(Boolean)
@@ -63,36 +70,26 @@ const ChattingPage: FC = () => {
       }
     }
 
-    const roots = (byParent.get(null) || []).map((rf) => makeNode(rf.id)).filter(Boolean) as UITreeItem[]
+    const root = folders.find((f) => f.id === ROOT_FOLDER_ID)
+    if (!root) return []
+    const rootChildren = (byParent.get(ROOT_FOLDER_ID) || [])
+      .map((id) => makeNode(id))
+      .filter(Boolean) as UITreeItem[]
+    const rootTopics = (root.topicIds || [])
+      .map((id) => topicById.get(id))
+      .filter(Boolean)
+      .map((t) => ({ id: t!.id, name: t!.name, type: 'chat' as const }))
 
-    // Compute unassigned topics:
-    // - If no folders exist yet, treat all topics as unassigned
-    // - If folders exist but topics slice is empty (using assistant fallback), compute unassigned by excluding assigned IDs
-    const hasAnyFolders = folders.length > 0
-    let unassigned = allTopics
-    if (hasAnyFolders) {
-      if (hasSliceTopics) {
-        unassigned = unassignedTopicsFromSelector
-      } else {
-        const assignedIdSet = new Set<string>()
-        for (const f of folders) for (const id of f.topicIds || []) assignedIdSet.add(id)
-        unassigned = allTopics.filter((t) => !assignedIdSet.has(t.id))
-      }
-    }
+    // Fallback: include any topics not assigned to any folder yet (e.g., during first-run migration)
+    const assignedSet = new Set<string>()
+    for (const f of folders) for (const id of f.topicIds || []) assignedSet.add(id)
+    const unassignedExtras = allTopics
+      .filter((t) => !assignedSet.has(t.id))
+      .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
 
-    // Pseudo node for unassigned topics (backend root is invisible; UI needs a place to click them)
-    const unassignedNode: UITreeItem | null = unassigned.length
-      ? {
-          id: 'root-unassigned',
-          name: 'Unassigned',
-          type: 'folder',
-          isOpen: true,
-          children: unassigned.map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
-        }
-      : null
-
-    return unassignedNode ? [unassignedNode, ...roots] : roots
-  }, [folders, allTopics, unassignedTopicsFromSelector, topicById, hasSliceTopics])
+    // Return only root contents, always open
+    return [...unassignedExtras, ...rootTopics, ...rootChildren]
+  }, [folders, topicById, allTopics])
 
   // Handle any necessary side effects
   useEffect(() => {
@@ -100,6 +97,58 @@ const ChattingPage: FC = () => {
       setActiveAssistant(assistants[0])
     }
   }, [assistants, activeAssistant])
+
+  // Hydrate topics slice from assistant topics if it's empty so Unassigned shows by default
+  useEffect(() => {
+    if (!hasSliceTopics && allAssistantTopics.length > 0) {
+      dispatch(topicsActions.addTopics(allAssistantTopics))
+    }
+  }, [hasSliceTopics, allAssistantTopics, dispatch])
+
+  // Ensure a real root folder exists and migrate items to root-based model
+  useEffect(() => {
+    const now = new Date().toISOString()
+    const root = folders.find((f) => f.id === ROOT_FOLDER_ID)
+    if (!root) {
+      dispatch(
+        foldersActions.addFolder({
+          id: ROOT_FOLDER_ID,
+          name: 'Root',
+          parentFolderId: null,
+          topicIds: [],
+          childFolderIds: [],
+          createdAt: now,
+          updatedAt: now
+        })
+      )
+      // Wait for next render cycle when root exists
+      return
+    }
+    // Re-parent any top-level folders to root (excluding root itself)
+    const topLevel = folders.filter((f) => (f.parentFolderId ?? null) === null && f.id !== ROOT_FOLDER_ID)
+    for (const f of topLevel) {
+      dispatch(
+        foldersActions.updateFolder({
+          ...f,
+          parentFolderId: ROOT_FOLDER_ID,
+          updatedAt: new Date().toISOString()
+        })
+      )
+    }
+    // Build topicId -> folderId map
+    const topicToFolder = new Map<string, string>()
+    for (const f of folders) {
+      for (const id of f.topicIds || []) topicToFolder.set(id, f.id)
+    }
+    // Assign any unassigned topics to root
+    const unassignedIds = allTopics.map((t) => t.id).filter((id) => !topicToFolder.has(id))
+    if (unassignedIds.length) {
+      dispatch(foldersActions.assignTopicsToFolder({ folderId: ROOT_FOLDER_ID, topicIds: unassignedIds }))
+    }
+    // Upsert topic.folderId for all topics
+    const updatedTopics = allTopics.map((t) => ({ ...t, folderId: topicToFolder.get(t.id) || ROOT_FOLDER_ID }))
+    if (updatedTopics.length) dispatch(topicsActions.upsertTopics(updatedTopics))
+  }, [dispatch, folders, allTopics])
 
   const handleSetActiveTopic = useCallback((topic: Topic) => {
     setActiveTopic(topic)
@@ -109,6 +158,76 @@ const ChattingPage: FC = () => {
     setActiveAssistant(assistant)
   }, [])
 
+  const handleNewFolder = useCallback(
+    (parentId?: string) => {
+      // Only treat as folder parent if id matches an existing folder (ignore pseudo nodes like 'root-unassigned')
+      const isValidParent = parentId && folders.some((f) => f.id === parentId)
+      const now = new Date().toISOString()
+      const id = nanoid()
+      dispatch(
+        foldersActions.addFolder({
+          id,
+          name: 'New Folder',
+          parentFolderId: isValidParent ? parentId! : ROOT_FOLDER_ID,
+          topicIds: [],
+          childFolderIds: [],
+          createdAt: now,
+          updatedAt: now
+        })
+      )
+    },
+    [dispatch, folders]
+  )
+
+  const handleNewChat = useCallback(
+    async (parentId?: string) => {
+      // Ensure we have an assistant: prefer active, else default, else first
+      const assistant = activeAssistant || defaultAssistant || assistants[0]
+      if (!assistant) return
+      // If topics slice is empty (we were showing assistant topics fallback), seed it first
+      if (!hasSliceTopics && allAssistantTopics.length > 0) {
+        dispatch(topicsActions.addTopics(allAssistantTopics))
+      }
+      const topicBase = getDefaultTopic(assistant.id)
+      const folderId = parentId && folders.some((f) => f.id === parentId) ? parentId : ROOT_FOLDER_ID
+      const topic = { ...topicBase, folderId }
+      // Persist empty messages array in Dexie
+      await db.topics.add({ id: topic.id, messages: [] })
+      // Update assistants slice (add topic under assistant)
+      dispatch(assistantsAddTopic({ assistantId: assistant.id, topic }))
+      // Update topics slice (metadata only)
+      dispatch(topicsActions.addTopic(topic))
+      // Assign to folder if a valid folder id is provided
+      dispatch(foldersActions.assignTopicsToFolder({ folderId, topicIds: [topic.id] }))
+      // Set as active
+      setActiveTopic(topic)
+      // Ensure the active assistant is set if it was empty
+      if (!activeAssistant) {
+        setActiveAssistant(assistant)
+      }
+    },
+    [activeAssistant, defaultAssistant, assistants, dispatch, folders, setActiveTopic, setActiveAssistant, hasSliceTopics, allAssistantTopics]
+  )
+
+  const handleDelete = useCallback(
+    (item: UITreeItem) => {
+      if (item.type !== 'folder') return
+      if (item.id === ROOT_FOLDER_ID) return // do not delete real root
+      // collect this folder and all descendants
+      const toDelete: string[] = []
+      const queue: string[] = [item.id]
+      while (queue.length) {
+        const fid = queue.shift()!
+        toDelete.push(fid)
+        for (const f of folders) {
+          if ((f.parentFolderId ?? null) === fid) queue.push(f.id)
+        }
+      }
+      // Removing folders implicitly unassigns their topics
+      dispatch(foldersActions.removeFoldersById(toDelete))
+    },
+    [dispatch, folders]
+  )
 
   if (!activeAssistant || !activeTopic) {
     return (
@@ -139,6 +258,9 @@ const ChattingPage: FC = () => {
                   if (t) setActiveTopic(t)
                 }
               }}
+              onNewFolder={handleNewFolder}
+              onNewChat={handleNewChat}
+              onDelete={handleDelete}
             />
           </SidebarContainer>
         )}

@@ -3,6 +3,8 @@ import type { RootState } from '.'
 import type { Folder, Topic } from '@renderer/types'
 import { uniq } from 'lodash'
 
+export const ROOT_FOLDER_ID = 'root'
+
 // Folders backend slice
 // - Folders store topicIds just like Assistants
 // - There is an invisible root folder that holds topics that are not assigned to any folder
@@ -13,8 +15,10 @@ const sanitizeFolder = (folder: Folder): Folder => {
   if (!folder.createdAt) folder.createdAt = now
   if (!folder.updatedAt) folder.updatedAt = now
   if (!folder.topicIds) folder.topicIds = []
+  if (!folder.childFolderIds) folder.childFolderIds = []
   // ensure uniqueness
   folder.topicIds = uniq(folder.topicIds)
+  folder.childFolderIds = uniq(folder.childFolderIds)
   return folder
 }
 
@@ -32,7 +36,17 @@ const foldersSlice = createSlice({
   initialState,
   reducers: {
     addFolder: (state, action: PayloadAction<Folder>) => {
-      foldersAdapter.addOne(state, sanitizeFolder(action.payload))
+      const f = sanitizeFolder(action.payload)
+      foldersAdapter.addOne(state, f)
+      // link to parent.childFolderIds if provided
+      const parentId = f.parentFolderId ?? null
+      if (parentId) {
+        const parent = state.entities[parentId]
+        if (parent) {
+          const childFolderIds = uniq([...(parent.childFolderIds || []), f.id])
+          foldersAdapter.updateOne(state, { id: parent.id, changes: { childFolderIds, updatedAt: new Date().toISOString() } })
+        }
+      }
     },
     addFolders: (state, action: PayloadAction<Folder[]>) => {
       foldersAdapter.addMany(state, action.payload.map(sanitizeFolder))
@@ -45,13 +59,54 @@ const foldersSlice = createSlice({
     },
     updateFolder: (state, action: PayloadAction<Folder>) => {
       const f = sanitizeFolder(action.payload)
+      const prev = state.entities[f.id]
       foldersAdapter.updateOne(state, { id: f.id, changes: f })
+      // if parent changed, update parent.childFolderIds links
+      const prevParentId = prev?.parentFolderId ?? null
+      const newParentId = f.parentFolderId ?? null
+      if (prevParentId !== newParentId) {
+        if (prevParentId) {
+          const prevParent = state.entities[prevParentId]
+          if (prevParent) {
+            const childFolderIds = (prevParent.childFolderIds || []).filter((id) => id !== f.id)
+            foldersAdapter.updateOne(state, { id: prevParent.id, changes: { childFolderIds, updatedAt: new Date().toISOString() } })
+          }
+        }
+        if (newParentId) {
+          const newParent = state.entities[newParentId]
+          if (newParent) {
+            const childFolderIds = uniq([...(newParent.childFolderIds || []), f.id])
+            foldersAdapter.updateOne(state, { id: newParent.id, changes: { childFolderIds, updatedAt: new Date().toISOString() } })
+          }
+        }
+      }
     },
     removeFolderById: (state, action: PayloadAction<string>) => {
-      foldersAdapter.removeOne(state, action.payload)
+      const id = action.payload
+      const folder = state.entities[id]
+      if (folder?.parentFolderId) {
+        const parent = state.entities[folder.parentFolderId]
+        if (parent) {
+          const childFolderIds = (parent.childFolderIds || []).filter((cid) => cid !== id)
+          foldersAdapter.updateOne(state, { id: parent.id, changes: { childFolderIds, updatedAt: new Date().toISOString() } })
+        }
+      }
+      foldersAdapter.removeOne(state, id)
     },
     removeFoldersById: (state, action: PayloadAction<string[]>) => {
-      foldersAdapter.removeMany(state, action.payload)
+      const ids = action.payload
+      // clean parent links first
+      for (const id of ids) {
+        const folder = state.entities[id]
+        if (folder?.parentFolderId) {
+          const parent = state.entities[folder.parentFolderId]
+          if (parent) {
+            const childFolderIds = (parent.childFolderIds || []).filter((cid) => cid !== id)
+            foldersAdapter.updateOne(state, { id: parent.id, changes: { childFolderIds, updatedAt: new Date().toISOString() } })
+          }
+        }
+      }
+      foldersAdapter.removeMany(state, ids)
     },
     // Assign a set of topics to a folder (replaces by moving from any other folder/unassigned)
     assignTopicsToFolder: (

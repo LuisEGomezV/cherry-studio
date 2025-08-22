@@ -186,6 +186,8 @@ export type Topic = {
   createdAt: string
   updatedAt: string
   messages: Message[]
+  // Owning folder id (root folder if unassigned)
+  folderId?: string
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
@@ -199,6 +201,8 @@ export type Folder = {
   parentFolderId?: string | null
   // Topic IDs assigned to this folder
   topicIds?: string[]
+  // Direct child folder IDs for faster tree building
+  childFolderIds?: string[]
   icon?: string
   createdAt?: string
   updatedAt?: string
