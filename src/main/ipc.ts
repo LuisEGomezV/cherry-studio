@@ -70,7 +70,7 @@ const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const appUpdater = new AppUpdater(mainWindow)
+  const appUpdater = new AppUpdater()
   const notificationService = new NotificationService(mainWindow)
 
   // Initialize Python service with main window
@@ -190,6 +190,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return systemPreferences.isTrustedAccessibilityClient(true)
     })
   }
+
+  ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {
+    mainWindow.setFullScreen(value)
+  })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
     configManager.set(key, value, isNotify)
