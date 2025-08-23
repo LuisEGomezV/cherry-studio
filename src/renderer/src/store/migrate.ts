@@ -2094,6 +2094,125 @@ const migrateConfig = {
       logger.error('migrate 130 error', error as Error)
       return state
     }
+  },
+  '131': (state: RootState) => {
+    try {
+      logger.info('Running migration 131 - extracting topics from assistants')
+      
+      // Initialize topics and folders state if they don't exist
+      if (!state.topics) {
+        state.topics = { ids: [], entities: {} }
+        logger.info('Initialized empty topics state')
+      }
+      if (!state.folders) {
+        state.folders = { ids: [], entities: {} }
+        logger.info('Initialized empty folders state')
+      }
+
+      // Create root folder if it doesn't exist
+      const rootFolderId = 'root'
+      if (!state.folders.entities[rootFolderId]) {
+        const now = new Date().toISOString()
+        state.folders.entities[rootFolderId] = {
+          id: rootFolderId,
+          name: 'Root',
+          parentFolderId: null,
+          topicIds: [],
+          childFolderIds: [],
+          createdAt: now,
+          updatedAt: now
+        }
+        if (!state.folders.ids.includes(rootFolderId)) {
+          state.folders.ids.push(rootFolderId)
+        }
+      }
+
+      // Extract topics from all assistants and move them to independent storage
+      const allTopicsToMove: any[] = []
+      const assistantTopicMappings: { [assistantId: string]: string[] } = {}
+
+      logger.info(`Found ${state.assistants.assistants.length} assistants to process`)
+      logger.info(`Default assistant has ${state.assistants.defaultAssistant.topics?.length || 0} topics`)
+
+      // Process default assistant
+      /* if (state.assistants.defaultAssistant.topics && state.assistants.defaultAssistant.topics.length > 0) {
+        const topicIds: string[] = []
+        for (const topic of state.assistants.defaultAssistant.topics) {
+          logger.info(`Processing default assistant topic: ${topic.id}, name: "${topic.name}", assistantId: ${state.assistants.defaultAssistant.id}`)
+          // Ensure all required topic properties are present, matching getDefaultTopic structure
+          const migratedTopic = {
+            id: topic.id,
+            assistantId: state.assistants.defaultAssistant.id,
+            name: topic.name || 'Default Topic',
+            createdAt: topic.createdAt || new Date().toISOString(),
+            updatedAt: topic.updatedAt || new Date().toISOString(),
+            messages: [], // Clear messages as they should be in Dexie
+            isNameManuallyEdited: topic.isNameManuallyEdited || false,
+            folderId: rootFolderId // Assign to root folder
+          }
+          allTopicsToMove.push(migratedTopic)
+          topicIds.push(topic.id)
+        }
+        assistantTopicMappings[state.assistants.defaultAssistant.id] = topicIds
+        // Clear topics from default assistant and set topicIds
+        state.assistants.defaultAssistant.topics = []
+        state.assistants.defaultAssistant.topicIds = topicIds
+      } */
+
+      // Process regular assistants
+      for (const assistant of state.assistants.assistants) {
+        logger.info(`Processing assistant: ${assistant.id}, name: "${assistant.name}", topics count: ${assistant.topics?.length || 0}`)
+        if (assistant.topics && assistant.topics.length > 0) {
+          const topicIds: string[] = []
+          for (const topic of assistant.topics) {
+            logger.info(`Processing assistant topic: ${topic.id}, name: "${topic.name}", assistantId: ${assistant.id}`)
+            // Ensure all required topic properties are present, matching getDefaultTopic structure
+            const migratedTopic = {
+              id: topic.id,
+              assistantId: assistant.id,
+              name: topic.name || 'Default Topic',
+              createdAt: topic.createdAt || new Date().toISOString(),
+              updatedAt: topic.updatedAt || new Date().toISOString(),
+              messages: [], // Clear messages as they should be in Dexie
+              isNameManuallyEdited: topic.isNameManuallyEdited || false,
+              folderId: rootFolderId // Assign to root folder
+            }
+            allTopicsToMove.push(migratedTopic)
+            topicIds.push(topic.id)
+          }
+          assistantTopicMappings[assistant.id] = topicIds
+          // Clear topics from assistant and set topicIds
+          assistant.topics = []
+          assistant.topicIds = topicIds
+        }
+      }
+
+      // Add all extracted topics to the independent topics storage
+      logger.info(`Moving ${allTopicsToMove.length} topics to independent storage`)
+      for (const topic of allTopicsToMove) {
+        state.topics.entities[topic.id] = topic
+        if (!state.topics.ids.includes(topic.id)) {
+          state.topics.ids.push(topic.id)
+        }
+      }
+
+      // Assign all migrated topics to the root folder
+      const rootFolder = state.folders.entities[rootFolderId]
+      if (rootFolder && allTopicsToMove.length > 0) {
+        const allTopicIds = allTopicsToMove.map(t => t.id)
+        rootFolder.topicIds = [...(rootFolder.topicIds || []), ...allTopicIds]
+        // Remove duplicates
+        rootFolder.topicIds = [...new Set(rootFolder.topicIds)]
+        rootFolder.updatedAt = new Date().toISOString()
+        logger.info(`Assigned ${allTopicIds.length} topics to root folder`)
+      }
+
+      logger.info('Migration 131 completed successfully')
+      return state
+    } catch (error) {
+      logger.error('migrate 131 error', error as Error)
+      return state
+    }
   }
 }
 
