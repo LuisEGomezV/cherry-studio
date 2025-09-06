@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { removeTopic as removeTopicUtil } from '@renderer/utils/topics'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
@@ -85,6 +86,7 @@ export function useAssistant(id: string) {
     removeTopic: (topic: Topic) => {
       TopicManager.removeTopic(topic.id)
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
+      removeTopicUtil(topic.id) // Handles Redux state cleanup (folders and topics slices)
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))

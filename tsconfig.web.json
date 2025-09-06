@@ -13,6 +13,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "moduleResolution": "bundler",
+    "noEmit": true,
     "paths": {
       "@logger": ["src/renderer/src/services/LoggerService"],
       "@renderer/*": ["src/renderer/src/*"],

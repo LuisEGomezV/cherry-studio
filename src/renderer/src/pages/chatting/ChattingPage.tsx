@@ -6,8 +6,9 @@ import { Assistant, Topic } from '@renderer/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { foldersActions, selectAllFolders, ROOT_FOLDER_ID } from '@renderer/store/folders'
 import { topicsActions, selectAllTopics } from '@renderer/store/topics'
-import { addTopic as assistantsAddTopic } from '@renderer/store/assistants'
+import { createTopic } from '@renderer/utils/topics'
 import type { FolderItem as UITreeItem } from '@renderer/types/folder'
+import { loggerService } from '@renderer/services/LoggerService'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
@@ -16,11 +17,10 @@ import Chat from '../home/Chat'
 import FolderTree from '../../components/folder/FolderTree'
 import ChattingTopicItem from './components/ChattingTopicItem'
 import { nanoid } from 'nanoid'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { db } from '@renderer/databases'
 
 const ChattingPage: FC = () => {
   const { assistants } = useAssistants()
+  const logger = loggerService.withContext('ChattingPage')
   const location = useLocation()
   const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
   const { isLeftNavbar } = useNavbarPosition()
@@ -37,12 +37,7 @@ const ChattingPage: FC = () => {
   // Real folders and topics from store
   const folders = useAppSelector(selectAllFolders)
   const sliceTopics = useAppSelector(selectAllTopics)
-
-  // Fallback: if topics slice is empty, use topics from assistants (legacy path)
-  const allAssistantTopics = assistants.flatMap((a) => a.topics || [])
-  const hasSliceTopics = !!(sliceTopics && sliceTopics.length > 0)
-  const allTopics = hasSliceTopics ? sliceTopics : allAssistantTopics
-  const topicById = new Map(allTopics.map((t) => [t.id, t]))
+  const topicById = new Map(sliceTopics.map((t) => [t.id, t]))
 
   const buildFolderTreeData = useCallback((): UITreeItem[] => {
     // Build from real root folder: show its contents (topics and child folders), not the root node itself
@@ -82,30 +77,34 @@ const ChattingPage: FC = () => {
       .filter(Boolean)
       .map((t) => ({ id: t!.id, name: t!.name, type: 'chat' as const }))
 
-    // Fallback: include any topics not assigned to any folder yet (e.g., during first-run migration)
+    // Include any topics not assigned to any folder yet (e.g., during first-run migration)
     const assignedSet = new Set<string>()
     for (const f of folders) for (const id of f.topicIds || []) assignedSet.add(id)
-    const unassignedExtras = allTopics
+    const unassignedExtras = sliceTopics
       .filter((t) => !assignedSet.has(t.id))
       .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
 
     // Return only root contents, always open. Folders first, then topics (root-assigned), then unassigned extras
     return [...rootChildren, ...rootTopics, ...unassignedExtras]
-  }, [folders, topicById, allTopics])
+  }, [folders, topicById, sliceTopics])
 
   // Handle any necessary side effects
   useEffect(() => {
-    if (assistants.length > 0 && !activeAssistant) {
-      setActiveAssistant(assistants[0])
+    try {
+      logger.debug('Assistants/ActiveAssistant check', {
+        assistantsCount: assistants.length,
+        hasActiveAssistant: !!activeAssistant
+      })
+      if (assistants.length > 0 && !activeAssistant) {
+        setActiveAssistant(assistants[0])
+        logger.info('Set default active assistant', { assistantId: assistants[0]?.id })
+      }
+    } catch (err) {
+      logger.error('Error in assistants init effect', err as any)
     }
   }, [assistants, activeAssistant])
 
-  // Hydrate topics slice from assistant topics if it's empty so Unassigned shows by default
-  useEffect(() => {
-    if (!hasSliceTopics && allAssistantTopics.length > 0) {
-      dispatch(topicsActions.addTopics(allAssistantTopics))
-    }
-  }, [hasSliceTopics, allAssistantTopics, dispatch])
+  // No hydration from assistant.topics; topics slice is the single source of truth
 
   // Ensure a real root folder exists and migrate items to root-based model
   useEffect(() => {
@@ -143,18 +142,43 @@ const ChattingPage: FC = () => {
       for (const id of f.topicIds || []) topicToFolder.set(id, f.id)
     }
     // Assign any unassigned topics to root
-    const unassignedIds = allTopics.map((t) => t.id).filter((id) => !topicToFolder.has(id))
+    const unassignedIds = sliceTopics.map((t) => t.id).filter((id) => !topicToFolder.has(id))
     if (unassignedIds.length) {
       dispatch(foldersActions.assignTopicsToFolder({ folderId: ROOT_FOLDER_ID, topicIds: unassignedIds }))
     }
-    // Upsert topic.folderId for all topics
-    const updatedTopics = allTopics.map((t) => ({ ...t, folderId: topicToFolder.get(t.id) || ROOT_FOLDER_ID }))
-    if (updatedTopics.length) dispatch(topicsActions.upsertTopics(updatedTopics))
-  }, [dispatch, folders, allTopics])
+    // Upsert topic.folderId for all topics that don't already have it
+    const topicsNeedingFolderId = sliceTopics.filter((t) => !t.folderId)
+    if (topicsNeedingFolderId.length) {
+      const updatedTopics = topicsNeedingFolderId.map((t) => ({ ...t, folderId: topicToFolder.get(t.id) || ROOT_FOLDER_ID }))
+      dispatch(topicsActions.upsertTopics(updatedTopics))
+    }
+  }, [dispatch, folders, sliceTopics])
 
   const handleSetActiveTopic = useCallback((topic: Topic) => {
-    setActiveTopic(topic)
-  }, [setActiveTopic])
+    try {
+      logger.info('Setting active topic (assistant-first)', {
+        topicId: topic?.id,
+        topicName: topic?.name,
+        topicAssistantId: topic?.assistantId,
+        prevTopicId: activeTopic?.id,
+        prevAssistantId: activeAssistant?.id
+      })
+      // If topic belongs to a different assistant, switch assistant first
+      if (topic?.assistantId && topic.assistantId !== activeAssistant?.id) {
+        const targetAssistant = assistants.find((a) => a.id === topic.assistantId)
+        if (targetAssistant) {
+          setActiveAssistant(targetAssistant)
+          logger.debug('Switched active assistant before topic switch', { assistantId: targetAssistant.id })
+        } else {
+          logger.warn('Assistant for topic not found, proceeding with topic activation', { assistantId: topic.assistantId })
+        }
+      }
+      // Then set topic active
+      setActiveTopic(topic)
+    } catch (err) {
+      logger.error('Failed to set active topic', { error: err, topicId: topic?.id })
+    }
+  }, [setActiveTopic, logger, activeTopic?.id, assistants, activeAssistant?.id, setActiveAssistant])
 
   const handleSetActiveAssistant = useCallback((assistant: Assistant) => {
     setActiveAssistant(assistant)
@@ -191,32 +215,29 @@ const ChattingPage: FC = () => {
 
   const handleNewChat = useCallback(
     async (parentId?: string) => {
-      // Ensure we have an assistant: prefer active, else default, else first
-      const assistant = activeAssistant || defaultAssistant || assistants[0]
-      if (!assistant) return
-      // If topics slice is empty (we were showing assistant topics fallback), seed it first
-      if (!hasSliceTopics && allAssistantTopics.length > 0) {
-        dispatch(topicsActions.addTopics(allAssistantTopics))
-      }
-      const topicBase = getDefaultTopic(assistant.id)
-      const folderId = parentId && folders.some((f) => f.id === parentId) ? parentId : ROOT_FOLDER_ID
-      const topic = { ...topicBase, folderId }
-      // Persist empty messages array in Dexie
-      await db.topics.add({ id: topic.id, messages: [] })
-      // Update assistants slice (add topic under assistant)
-      dispatch(assistantsAddTopic({ assistantId: assistant.id, topic }))
-      // Update topics slice (metadata only)
-      dispatch(topicsActions.addTopic(topic))
-      // Assign to folder if a valid folder id is provided
-      dispatch(foldersActions.assignTopicsToFolder({ folderId, topicIds: [topic.id] }))
-      // Set as active
-      setActiveTopic(topic)
-      // Ensure the active assistant is set if it was empty
-      if (!activeAssistant) {
-        setActiveAssistant(assistant)
+      try {
+        // Ensure we have an assistant: prefer active, else default, else first
+        const assistant = activeAssistant || assistants[0]
+        if (!assistant) {
+          logger.warn('No assistant available when creating new chat')
+          return
+        }
+        const folderId = parentId && folders.some((f) => f.id === parentId) ? parentId : ROOT_FOLDER_ID
+        logger.debug('Creating new topic', { assistantId: assistant.id, folderId })
+        const topic = await createTopic(assistant.id, folderId)
+        logger.info('New topic created', { topicId: topic.id, folderId })
+        // Set as active
+        setActiveTopic(topic)
+        // Ensure the active assistant is set if it was empty
+        if (!activeAssistant) {
+          setActiveAssistant(assistant)
+          logger.info('Active assistant set after new topic', { assistantId: assistant.id })
+        }
+      } catch (err) {
+        logger.error('Failed to create or activate new topic', err as any)
       }
     },
-    [activeAssistant, defaultAssistant, assistants, dispatch, folders, setActiveTopic, setActiveAssistant, hasSliceTopics, allAssistantTopics]
+    [activeAssistant, defaultAssistant, assistants, dispatch, folders, setActiveTopic, setActiveAssistant, logger]
   )
 
   // Note: do not listen to global Home events here to avoid duplicate creations
@@ -266,9 +287,19 @@ const ChattingPage: FC = () => {
             <FolderTree
               data={buildFolderTreeData()}
               onSelect={(item) => {
-                if (item.type === 'chat') {
-                  const t = topicById.get(item.id)
-                  if (t) setActiveTopic(t)
+                try {
+                  logger.debug('FolderTree onSelect', { item })
+                  if (item.type === 'chat') {
+                    const t = topicById.get(item.id)
+                    if (t) {
+                      logger.info('Topic selected from tree', { topicId: t.id, topicName: t.name })
+                      handleSetActiveTopic(t)
+                    } else {
+                      logger.warn('Topic not found by id from tree', { topicId: item.id })
+                    }
+                  }
+                } catch (err) {
+                  logger.error('Error handling FolderTree onSelect', err as any)
                 }
               }}
               onNewFolder={handleNewFolder}
