@@ -81,7 +81,7 @@ describe('processMessages', () => {
         group: 'test group'
       },
       prompt: '',
-      topics: [],
+      topicIds: [],
       type: 'assistant'
     } as Assistant
 
