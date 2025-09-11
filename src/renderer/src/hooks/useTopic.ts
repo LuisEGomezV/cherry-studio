@@ -22,11 +22,10 @@ let _setActiveTopic: (topic: Topic) => void
 // const logger = loggerService.withContext('useTopic')
 
 export function useActiveTopic(assistantId: string, topic?: Topic) {
-  const { assistant } = useAssistant(assistantId)
   // Prefer topics slice; fallback to nested assistant.topics for compatibility
   const state = store.getState()
   const topicsFromSlice = selectAssistantTopics(state, assistantId)
-  const firstTopic = topicsFromSlice[0] || assistant?.topics?.[0]
+  const firstTopic = topicsFromSlice[0]
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || firstTopic)
 
   _activeTopic = activeTopic

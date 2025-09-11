@@ -30,7 +30,7 @@ export function getDefaultAssistant(): Assistant {
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',
-    topics: [getDefaultTopic('default')],
+    topicIds: [],
     messages: [],
     type: 'assistant',
     regularPhrases: [], // Added regularPhrases

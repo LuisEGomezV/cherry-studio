@@ -10,6 +10,7 @@ import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+import { firstTopicOf } from '@renderer/utils/topics'
 
 import Chat from './Chat'
 import Navbar from './Navbar'
@@ -38,8 +39,10 @@ const HomePage: FC = () => {
       startTransition(() => {
         _setActiveAssistant(newAssistant)
         // 同步更新 active topic，避免不必要的重新渲染
-        const newTopic = newAssistant.topics[0]
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
+        const newTopic = firstTopicOf(newAssistant)
+        if (newTopic) {
+          _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
+        }
       })
     },
     [_setActiveTopic, activeAssistant]

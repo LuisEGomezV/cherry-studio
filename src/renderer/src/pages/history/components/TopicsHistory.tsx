@@ -1,6 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { VStack } from '@renderer/components/Layout'
-import { useAssistants } from '@renderer/hooks/useAssistant'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { Topic } from '@renderer/types'
@@ -10,6 +9,8 @@ import { groupBy, isEmpty, orderBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { useAppSelector } from '@renderer/store'
+import { selectAllTopics } from '@renderer/store/topics'
 
 type SortType = 'createdAt' | 'updatedAt'
 
@@ -20,12 +21,12 @@ type Props = {
 } & React.HTMLAttributes<HTMLDivElement>
 
 const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props }) => {
-  const { assistants } = useAssistants()
   const { t } = useTranslation()
   const { handleScroll, containerRef } = useScrollPosition('TopicsHistory')
   const [sortType, setSortType] = useState<SortType>('createdAt')
 
-  const topics = orderBy(assistants.map((assistant) => assistant.topics).flat(), sortType, 'desc')
+  const allTopics = useAppSelector(selectAllTopics)
+  const topics = orderBy(allTopics, sortType, 'desc')
 
   const filteredTopics = topics.filter((topic) => {
     return topic.name.toLowerCase().includes(keywords.toLowerCase())

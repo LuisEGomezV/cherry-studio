@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux'
 
 import { Assistant, Topic } from '@renderer/types'
 import { useAssistants, useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistantTopics } from '@renderer/hooks/useAssistantTopics'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -37,6 +38,7 @@ interface Props {
 const ChattingTopicItem: FC<Props> = ({ assistant: _assistant, topic, activeTopicId, onSwitchTopic, showTime, singlealone }) => {
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic } = useAssistant(_assistant.id)
+  const topics = useAssistantTopics(assistant.id)
   const { t } = useTranslation()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
@@ -82,12 +84,12 @@ const ChattingTopicItem: FC<Props> = ({ assistant: _assistant, topic, activeTopi
   const onDeleteTopic = useCallback(async (tpc: Topic) => {
     await modelGenerating()
     // If this is the only topic, clear messages instead of deleting
-    if (assistant.topics.length === 1) {
+    if (topics.length === 1) {
       return onClearMessages(tpc)
     }
     // When deleting active topic, switch to a neighbor
-    const index = findIndex(assistant.topics, (x) => x.id === tpc.id)
-    const next = assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1]
+    const index = findIndex(topics, (x) => x.id === tpc.id)
+    const next = topics[index + 1 === topics.length ? index - 1 : index + 1]
     if (tpc.id === activeTopicId && next) {
       onSwitchTopic(next)
     }
@@ -96,15 +98,15 @@ const ChattingTopicItem: FC<Props> = ({ assistant: _assistant, topic, activeTopi
     dispatch(topicsActions.removeTopicById(tpc.id))
     // And clean up folder references everywhere
     dispatch(foldersActions.removeTopicIds([tpc.id]))
-  }, [assistant.topics, activeTopicId, onSwitchTopic, removeTopic, onClearMessages, dispatch])
+  }, [topics, activeTopicId, onSwitchTopic, removeTopic, onClearMessages, dispatch])
 
   const onMoveTopic = useCallback(async (tpc: Topic, toAssistant: Assistant) => {
     await modelGenerating()
-    const index = findIndex(assistant.topics, (x) => x.id === tpc.id)
-    const next = assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1]
+    const index = findIndex(topics, (x) => x.id === tpc.id)
+    const next = topics[index + 1 === topics.length ? 0 : index + 1]
     if (tpc.id === activeTopicId && next) onSwitchTopic(next)
     moveTopic(tpc, toAssistant)
-  }, [assistant.topics, activeTopicId, moveTopic, onSwitchTopic])
+  }, [topics, activeTopicId, moveTopic, onSwitchTopic])
 
   const getTopicMenuItems = useMemo((): ItemType<MenuItemType>[] => {
     const menus: ItemType<MenuItemType>[] = [
@@ -235,7 +237,7 @@ const ChattingTopicItem: FC<Props> = ({ assistant: _assistant, topic, activeTopi
       }
     ]
 
-    if (assistants.length > 1 && assistant.topics.length > 1) {
+    if (assistants.length > 1 && topics.length > 1) {
       menus.push({
         label: t('chat.topics.move_to'),
         key: 'move',
@@ -244,13 +246,13 @@ const ChattingTopicItem: FC<Props> = ({ assistant: _assistant, topic, activeTopi
       })
     }
 
-    if (assistant.topics.length > 1 && !topic.pinned) {
+    if (topics.length > 1 && !topic.pinned) {
       menus.push({ type: 'divider' })
       menus.push({ label: t('common.delete'), danger: true, key: 'delete', icon: <DeleteIcon size={14} className="lucide-custom" />, onClick: () => onDeleteTopic(topic) })
     }
 
     return menus
-  }, [assistant, assistants, topic, t, exportMenuOptions, isRenaming, onDeleteTopic, onMoveTopic, updateTopic, activeTopicId, onSwitchTopic])
+  }, [assistant, assistants, topics, topic, t, exportMenuOptions, isRenaming, onDeleteTopic, onMoveTopic, updateTopic, activeTopicId, onSwitchTopic])
 
   const isActive = topic.id === activeTopicId
   const topicName = topic.name.replace('`', '')

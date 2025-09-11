@@ -13,6 +13,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { getTitleFromString } from '@renderer/utils/export'
+import { topicsOf } from '@renderer/utils/topics'
 import {
   createAssistantMessage,
   createFileBlock,
@@ -246,7 +247,9 @@ export function checkRateLimit(assistant: Assistant): boolean {
     return false
   }
 
-  const topicId = assistant.topics[0].id
+  const firstTopic = topicsOf(assistant)[0]
+  const topicId = firstTopic?.id
+  if (!topicId) return false
   const messages = selectMessagesForTopic(store.getState(), topicId)
 
   if (!messages || messages.length <= 1) {
