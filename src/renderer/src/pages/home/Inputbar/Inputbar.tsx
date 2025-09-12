@@ -13,7 +13,6 @@ import {
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -23,7 +22,7 @@ import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { createTopic } from '@renderer/utils/topics'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -77,7 +76,7 @@ let _files: FileType[] = []
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { assistant, model, setModel, updateAssistant } = useAssistant(_assistant.id)
   const {
     targetLanguage,
     sendMessageShortcut,
@@ -447,19 +446,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const addNewTopic = useCallback(async () => {
     await modelGenerating()
 
-    const topic = getDefaultTopic(assistant.id)
+    // Create a new topic using the utility function
+    const topic = await createTopic(assistant.id)
 
-    await db.topics.add({ id: topic.id, messages: [] })
-
-    // Clear previous state
     // Reset to assistant default model
     assistant.defaultModel && setModel(assistant.defaultModel)
 
-    addTopic(topic)
+    // The topic is already added to the store by createTopic
     setActiveTopic(topic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
+  }, [assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
 
   const onQuote = useCallback(
     (text: string) => {

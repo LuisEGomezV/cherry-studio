@@ -44,7 +44,7 @@ export function getDefaultAssistant(): Assistant {
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',
-    topics: [getDefaultTopic('default')],
+    topicIds: [],
     messages: [],
     type: 'assistant',
     regularPhrases: [], // Added regularPhrases
@@ -186,14 +186,13 @@ export function getAssistantById(id: string) {
 
 export async function createAssistantFromAgent(agent: Agent) {
   const assistantId = uuid()
-  const topic = getDefaultTopic(assistantId)
 
   const assistant: Assistant = {
     ...agent,
     id: assistantId,
     name: agent.name,
     emoji: agent.emoji,
-    topics: [topic],
+    topicIds: [],
     model: agent.defaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases

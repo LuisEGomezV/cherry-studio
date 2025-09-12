@@ -655,7 +655,10 @@
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
-    "translate": "Translate"
+    "translate": "Translate",
+    "folder": {
+      "new": "New Folder"
+    }
   },
   "code": {
     "auto_update_to_latest": "Automatically update to latest version",
@@ -4030,6 +4033,13 @@
       "reset": "Reset",
       "title": "Page Zoom"
     }
+  },
+  "chatting": {
+    "title": "Chatting",
+    "coming_soon": "Chatting feature is coming soon!"
+  },
+  "sidebar": {
+    "chatting": "Chatting"
   },
   "title": {
     "agents": "Agents",

@@ -19,7 +19,11 @@ export type Assistant = {
   name: string
   prompt: string
   knowledge_bases?: KnowledgeBase[]
-  topics: Topic[]
+  topicIds: string[]
+  /**
+   *@deprecated Nested topics are being decoupled. Use topicIds + topics slice instead.
+   */
+  topics?: Topic[]
   type: string
   emoji?: string
   description?: string
@@ -196,9 +200,28 @@ export type Topic = {
   createdAt: string
   updatedAt: string
   messages: Message[]
+  // Owning folder id (root folder if unassigned)
+  folderId?: string
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+}
+
+// Folder entity used for storing folders and topic assignments
+export type Folder = {
+  id: string
+  name: string
+  // Parent folder reference; null for root-level folders (no parent)
+  parentFolderId?: string | null
+  // Topic IDs assigned to this folder
+  topicIds?: string[]
+  // Direct child folder IDs for faster tree building
+  childFolderIds?: string[]
+  icon?: string
+  createdAt?: string
+  updatedAt?: string
+  // UI state: whether this folder is expanded in the sidebar tree
+  isOpen?: boolean
 }
 
 export type User = {
@@ -730,6 +753,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 
 export type SidebarIcon =
   | 'assistants'
+  | 'chatting'
   | 'agents'
   | 'paintings'
   | 'translate'

@@ -14,7 +14,7 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
   const agents: Agent[] = []
   for (let i = 0; i < systemAgents.length; i++) {
     for (let j = 0; j < systemAgents[i].group.length; j++) {
-      const agent = { ...systemAgents[i], group: systemAgents[i].group[j], topics: [], type: 'agent' } as Agent
+      const agent = { ...systemAgents[i], group: systemAgents[i].group[j], topicIds: [], type: 'agent' } as Agent
       agents.push(agent)
     }
   }

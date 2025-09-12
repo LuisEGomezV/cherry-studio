@@ -1,15 +1,15 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { VStack } from '@renderer/components/Layout'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { selectAllTopics } from '@renderer/store/assistants'
 import { Topic } from '@renderer/types'
 import { Button, Divider, Empty, Segmented } from 'antd'
 import dayjs from 'dayjs'
 import { groupBy, isEmpty, orderBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
+import { useAppSelector } from '@renderer/store'
+import { selectAllTopics } from '@renderer/store/topics'
 
 type SortType = 'createdAt' | 'updatedAt'
 
@@ -24,8 +24,8 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   const { handleScroll, containerRef } = useScrollPosition('TopicsHistory')
   const [sortType, setSortType] = useState<SortType>('createdAt')
 
-  // FIXME: db 中没有 topic.name 等信息，只能从 store 获取
-  const topics = useSelector(selectAllTopics)
+  const allTopics = useAppSelector(selectAllTopics)
+  const topics = orderBy(allTopics, sortType, 'desc')
 
   const filteredTopics = topics.filter((topic) => {
     return topic.name.toLowerCase().includes(keywords.toLowerCase())

@@ -5,6 +5,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantTopics } from '@renderer/hooks/useAssistantTopics'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -17,6 +18,7 @@ import { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { topicsActions } from '@renderer/store/topics'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
@@ -62,10 +64,11 @@ interface Props {
 }
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
-  const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const topics = useAssistantTopics(assistant.id)
+  const { t } = useTranslation()
   const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
@@ -81,10 +84,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
 
   const topicEdit = useInPlaceEdit({
     onSave: (name: string) => {
-      const topic = assistant.topics.find((t) => t.id === editingTopicId)
+      const topic = topics.find((t) => t.id === editingTopicId)
       if (topic && name !== topic.name) {
         const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
         updateTopic(updatedTopic)
+        dispatch(topicsActions.updateTopic(updatedTopic))
         window.message.success(t('common.saved'))
       }
       setEditingTopicId(null)
@@ -137,48 +141,49 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
-      if (assistant.topics.length === 1) {
+      if (topics.length === 1) {
         return onClearMessages(topic)
       }
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+      const index = findIndex(topics, (t) => t.id === topic.id)
       if (topic.id === activeTopic.id) {
-        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
       }
       removeTopic(topic)
       setDeletingTopicId(null)
     },
-    [activeTopic.id, assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+    [activeTopic.id, topics, onClearMessages, removeTopic, setActiveTopic]
   )
 
   const onPinTopic = useCallback(
     (topic: Topic) => {
       const updatedTopic = { ...topic, pinned: !topic.pinned }
       updateTopic(updatedTopic)
+      dispatch(topicsActions.updateTopic(updatedTopic))
     },
-    [updateTopic]
+    [updateTopic, dispatch]
   )
 
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
       await modelGenerating()
       if (topic.id === activeTopic?.id) {
-        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+        const index = findIndex(topics, (t) => t.id === topic.id)
+        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
       }
       removeTopic(topic)
     },
-    [assistant.topics, removeTopic, setActiveTopic, activeTopic]
+    [topics, removeTopic, setActiveTopic, activeTopic]
   )
 
   const onMoveTopic = useCallback(
     async (topic: Topic, toAssistant: Assistant) => {
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
+      const index = findIndex(topics, (t) => t.id === topic.id)
+      setActiveTopic(topics[index + 1 === topics.length ? 0 : index + 1])
       moveTopic(topic, toAssistant)
     },
-    [assistant.topics, moveTopic, setActiveTopic]
+    [topics, moveTopic, setActiveTopic]
   )
 
   const onSwitchTopic = useCallback(
@@ -212,6 +217,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
+                dispatch(topicsActions.updateTopic(updatedTopic))
               } else {
                 window.message?.error(t('message.error.fetchTopicName'))
               }
@@ -265,6 +271,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             (() => {
               const updatedTopic = { ...topic, prompt: prompt.trim() }
               updateTopic(updatedTopic)
+              dispatch(topicsActions.updateTopic(updatedTopic))
               topic.id === activeTopic.id && setActiveTopic(updatedTopic)
             })()
         }
@@ -427,7 +434,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       }
     ]
 
-    if (assistants.length > 1 && assistant.topics.length > 1) {
+    if (assistants.length > 1 && topics.length > 1) {
       menus.push({
         label: t('chat.topics.move_to'),
         key: 'move',
@@ -442,7 +449,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       })
     }
 
-    if (assistant.topics.length > 1 && !topic.pinned) {
+    if (topics.length > 1 && !topic.pinned) {
       menus.push({ type: 'divider' })
       menus.push({
         label: t('common.delete'),
@@ -483,14 +490,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
   // Sort topics based on pinned status if pinTopicsToTop is enabled
   const sortedTopics = useMemo(() => {
     if (pinTopicsToTop) {
-      return [...assistant.topics].sort((a, b) => {
+      return [...topics].sort((a, b) => {
         if (a.pinned && !b.pinned) return -1
         if (!a.pinned && b.pinned) return 1
         return 0
       })
     }
-    return assistant.topics
-  }, [assistant.topics, pinTopicsToTop])
+    return topics
+  }, [topics, pinTopicsToTop])
 
   const singlealone = topicPosition === 'right' && position === 'right'
 

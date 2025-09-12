@@ -12,17 +12,19 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
+import { loggerService } from '@renderer/services/LoggerService'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import { FC } from 'react'
+import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search, FolderPlus } from 'lucide-react'
+import { FC, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
-import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectModelButton from './components/SelectModelButton'
-import UpdateAppButton from './components/UpdateAppButton'
- 
+import AssistantsDrawer from '../home/components/AssistantsDrawer'
+import SelectModelButton from '../home/components/SelectModelButton'
+import UpdateAppButton from '../home/components/UpdateAppButton'
+import SelectAssistantButton from '../home/components/SelectAssistantButton'
+import { foldersActions, ROOT_FOLDER_ID } from '@renderer/store/folders'
+import { nanoid } from 'nanoid'
 
 interface Props {
   activeAssistant: Assistant
@@ -30,15 +32,37 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
+  onCreateTopic?: () => void
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic, onCreateTopic }) => {
+  const logger = loggerService.withContext('ChattingNavbar')
   const { assistant } = useAssistant(activeAssistant.id)
+  const { assistant: topicAssistant } = useAssistant(activeTopic.assistantId)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const isFullscreen = useFullscreen()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+
+  // Auto-sync navbar assistant with the active topic's assigned assistant (one-time to avoid loops)
+  const didInitialSyncRef = useRef(false)
+  useEffect(() => {
+    if (didInitialSyncRef.current) return
+    if (!activeTopic || !topicAssistant) return
+    if (topicAssistant.id !== activeAssistant.id) {
+      logger.debug('One-time sync assistant to topic on mount', {
+        fromAssistantId: activeAssistant.id,
+        toAssistantId: topicAssistant.id,
+        topicId: activeTopic.id
+      })
+      didInitialSyncRef.current = true
+      setActiveAssistant(topicAssistant)
+    } else {
+      logger.debug('Assistant already matches topic (no sync needed)', { assistantId: activeAssistant.id, topicId: activeTopic.id })
+      didInitialSyncRef.current = true
+    }
+  }, [activeTopic?.id, topicAssistant?.id, activeAssistant.id, setActiveAssistant])
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -70,24 +94,43 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <Navbar className="home-navbar">
-      <AnimatePresence initial={false}>
-        {showAssistants && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'auto', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-                <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
-                  <PanelLeftClose size={18} />
-                </NavbarIcon>
-              </Tooltip>
-            </NavbarLeft>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showAssistants && (
+        <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
+          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
+              <PanelLeftClose size={18} />
+            </NavbarIcon>
+          </Tooltip>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Tooltip title={t('chat.folder.new', 'New Folder') as string} mouseEnterDelay={0.8}>
+              <NavbarIcon
+                onClick={() => {
+                  const now = new Date().toISOString()
+                  const id = nanoid()
+                  dispatch(
+                    foldersActions.addFolder({
+                      id,
+                      name: t('chat.folder.new', 'New Folder') as string,
+                      parentFolderId: ROOT_FOLDER_ID,
+                      topicIds: [],
+                      createdAt: now,
+                      updatedAt: now
+                    })
+                  )
+                }}
+                style={{ marginRight: 8 }}
+              >
+                <FolderPlus size={18} />
+              </NavbarIcon>
+            </Tooltip>
+            <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+              <NavbarIcon onClick={() => (onCreateTopic ? onCreateTopic() : EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC))} style={{ marginRight: 5 }}>
+                <MessageSquareDiff size={18} />
+              </NavbarIcon>
+            </Tooltip>
+          </div>
+        </NavbarLeft>
+      )}
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
         <HStack alignItems="center">
           {!showAssistants && (
@@ -99,21 +142,20 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               </NavbarIcon>
             </Tooltip>
           )}
-          <AnimatePresence initial={false}>
-            {!showAssistants && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'auto', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}>
-                <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
-                  <Menu size={18} />
-                </NavbarIcon>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {!showAssistants && (
+            <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
+              <Menu size={18} />
+            </NavbarIcon>
+          )}
           <SelectModelButton assistant={assistant} />
+          <div style={{ marginLeft: 12 }}>
+            <SelectAssistantButton
+              assistant={assistant}
+              activeTopic={activeTopic}
+              setActiveAssistant={setActiveAssistant}
+              setActiveTopic={setActiveTopic}
+            />
+          </div>
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
@@ -187,4 +229,4 @@ const NarrowIcon = styled(NavbarIcon)`
   }
 `
 
-export default HeaderNavbar
+export default ChattingNavbar

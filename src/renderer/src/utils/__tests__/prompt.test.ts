@@ -57,7 +57,7 @@ const createMockAssistant = (name: string, modelName: string): Assistant => ({
   id: 'asst_mock_123',
   name,
   prompt: 'You are a helpful assistant.',
-  topics: [],
+  topicIds: [],
   type: 'assistant',
   model: {
     id: modelName,

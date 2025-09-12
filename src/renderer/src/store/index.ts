@@ -31,6 +31,8 @@ import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
 import translate from './translate'
+import { topicsReducer } from './topics'
+import { foldersReducer } from './folders'
 import websearch from './websearch'
 
 const logger = loggerService.withContext('Store')
@@ -55,6 +57,8 @@ const rootReducer = combineReducers({
   selectionStore,
   tabs,
   preprocess,
+  folders: foldersReducer,
+  topics: topicsReducer,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
@@ -67,7 +71,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 146,
+    version: 147,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },
@@ -86,7 +90,7 @@ const persistedReducer = persistReducer(
  * Call storeSyncService.subscribe() in the window's entryPoint.tsx
  */
 storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'note/']
+  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'note/', 'topics/', 'folders/']
 })
 
 const store = configureStore({

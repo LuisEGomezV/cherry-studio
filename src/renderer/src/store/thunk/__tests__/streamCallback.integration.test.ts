@@ -321,7 +321,7 @@ describe('streamCallback Integration Tests', () => {
     enableWebSearch: false,
     enableGenerateImage: false,
     knowledge_bases: [],
-    topics: [],
+    topicIds: [],
     type: 'test'
   }
 

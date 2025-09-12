@@ -66,7 +66,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           prompt: agent.prompt,
           description: agent.description || '',
           type: 'agent',
-          topics: [],
+          topicIds: [],
           messages: [],
           defaultModel: getDefaultModel(),
           regularPhrases: agent.regularPhrases || []

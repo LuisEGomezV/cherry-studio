@@ -8,6 +8,7 @@ import {
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { removeTopic as removeTopicUtil } from '@renderer/utils/topics'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
@@ -49,7 +50,7 @@ export function useAssistants() {
         return
       }
       const index = assistants.findIndex((_assistant) => _assistant.id === assistant.id)
-      const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+      const _assistant: Assistant = { ...assistant, id: uuid(), topicIds: [] }
       if (index === -1) {
         logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
         dispatch(addAssistant(_assistant))
@@ -67,8 +68,8 @@ export function useAssistants() {
     removeAssistant: (id: string) => {
       dispatch(removeAssistant({ id }))
       const assistant = assistants.find((a) => a.id === id)
-      const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
+      const topics = assistant?.topicIds || []
+      topics.forEach((topicId) => TopicManager.removeTopic(topicId))
     }
   }
 }
@@ -148,6 +149,7 @@ export function useAssistant(id: string) {
     removeTopic: (topic: Topic) => {
       TopicManager.removeTopic(topic.id)
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
+      removeTopicUtil(topic.id) // Handles Redux state cleanup (folders and topics slices)
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
