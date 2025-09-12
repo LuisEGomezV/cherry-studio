@@ -62,7 +62,7 @@ const ChattingPage: FC = () => {
         id: f.id,
         name: f.name,
         type: 'folder',
-        isOpen: true,
+        isOpen: !!f.isOpen,
         children: [...childFolders, ...folderTopics]
       }
     }
@@ -197,6 +197,7 @@ const ChattingPage: FC = () => {
           parentFolderId: isValidParent ? parentId! : ROOT_FOLDER_ID,
           topicIds: [],
           childFolderIds: [],
+          isOpen: false,
           createdAt: now,
           updatedAt: now
         })
@@ -368,6 +369,13 @@ const ChattingPage: FC = () => {
           <SidebarContainer onDragOver={handleSidebarDragOverRoot} onDrop={handleSidebarDropRoot}>
             <FolderTree
               data={buildFolderTreeData()}
+              onToggleFolder={(id, open) => {
+                try {
+                  dispatch(foldersActions.setFolderOpen({ id, isOpen: open }))
+                } catch (err) {
+                  logger.error('Failed to toggle folder open state', { error: err, id, open })
+                }
+              }}
               onSelect={(item) => {
                 try {
                   logger.debug('FolderTree onSelect', { item })

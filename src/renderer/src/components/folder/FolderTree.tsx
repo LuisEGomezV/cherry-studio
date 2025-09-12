@@ -21,6 +21,8 @@ interface FolderTreeProps {
   onDropToFolder?: (source: { type: 'folder' | 'chat'; id: string }, targetFolderId: string) => void;
   // Drag and drop: dropping into the empty area should assign to root
   onDropToRoot?: (source: { type: 'folder' | 'chat'; id: string }) => void;
+  // Optional: controlled open/closed state handler. If provided, component will not manage open state internally.
+  onToggleFolder?: (id: string, open: boolean) => void;
 }
 
 const getIcon = (type: string, isOpen?: boolean) => {
@@ -48,6 +50,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   renderChatItem,
   onDropToFolder,
   onDropToRoot,
+  onToggleFolder,
 }) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
@@ -80,9 +83,16 @@ const FolderTree: FC<FolderTreeProps> = ({
   const handleItemClick = (e: React.MouseEvent, item: FolderItem) => {
     e.stopPropagation();
     if (item.type === 'folder') {
-      toggleFolder(item.id);
+      if (onToggleFolder) {
+        const currentlyOpen = !!item.isOpen;
+        onToggleFolder(item.id, !currentlyOpen);
+      } else {
+        // fallback to internal state management for backward compatibility
+        toggleFolder(item.id);
+      }
     }
-    onSelect?.(item);  };
+    onSelect?.(item);
+  };
 
   const handleContextMenu = useCallback((e: React.MouseEvent, item: FolderItem) => {
     e.preventDefault();
@@ -228,7 +238,7 @@ const FolderTree: FC<FolderTreeProps> = ({
       const hasChildren = item.children && item.children.length > 0;
       const isFolder = item.type === 'folder';
       const isSelected = selectedId === item.id;
-      const isOpen = item.isOpen !== false; // Default to open if not specified
+      const isOpen = !!item.isOpen; // Default to closed if not specified
 
       // If this is a chat item and a custom renderer is provided, render it directly
       // without FolderTree's default container and context menu.

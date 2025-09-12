@@ -206,6 +206,8 @@ export type Folder = {
   icon?: string
   createdAt?: string
   updatedAt?: string
+  // UI state: whether this folder is expanded in the sidebar tree
+  isOpen?: boolean
 }
 
 export type User = {

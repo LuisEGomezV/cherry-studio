@@ -94,6 +94,11 @@ const foldersSlice = createSlice({
         }
       }
     },
+    // Update only UI open/closed state for a folder; do NOT change updatedAt to avoid affecting sort order
+    setFolderOpen: (state, action: PayloadAction<{ id: string; isOpen: boolean }>) => {
+      const { id, isOpen } = action.payload
+      foldersAdapter.updateOne(state, { id, changes: { isOpen } })
+    },
     removeFolderById: (state, action: PayloadAction<string>) => {
       const id = action.payload
       const folder = state.entities[id]
