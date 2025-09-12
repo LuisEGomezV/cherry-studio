@@ -17,6 +17,8 @@ interface FolderTreeProps {
   // Optional custom renderer for chat items (topics). When provided, chat items will be rendered
   // using this function and will not use the default FolderTree item container or context menu.
   renderChatItem?: (topicId: string) => React.ReactNode;
+  // Drag and drop: dropping either a folder or chat into a folder target
+  onDropToFolder?: (source: { type: 'folder' | 'chat'; id: string }, targetFolderId: string) => void;
 }
 
 const getIcon = (type: string, isOpen?: boolean) => {
@@ -42,6 +44,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   selectedId,
   level = 0,
   renderChatItem,
+  onDropToFolder,
 }) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
@@ -138,6 +141,36 @@ const FolderTree: FC<FolderTreeProps> = ({
     setEditValue('');
   }, []);
 
+  // Drag & Drop helpers
+  const DRAG_MIME = 'application/x-folder-tree-item';
+
+  const handleDragStart = useCallback((e: React.DragEvent, item: FolderItem) => {
+    e.stopPropagation();
+    try {
+      const payload = JSON.stringify({ type: item.type === 'folder' ? 'folder' : 'chat', id: item.id });
+      e.dataTransfer.setData(DRAG_MIME, payload);
+    } catch {}
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOverFolder = useCallback((e: React.DragEvent, item: FolderItem) => {
+    if (item.type !== 'folder') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDropOnFolder = useCallback((e: React.DragEvent, target: FolderItem) => {
+    if (target.type !== 'folder') return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
+      if (!raw) return;
+      const payload = JSON.parse(raw) as { type: 'folder' | 'chat'; id: string };
+      onDropToFolder?.(payload, target.id);
+    } catch {}
+  }, [onDropToFolder]);
+
   const menuItems = [
     {
       key: 'new-chat',
@@ -179,7 +212,12 @@ const FolderTree: FC<FolderTreeProps> = ({
       // without FolderTree's default container and context menu.
       if (item.type === 'chat' && renderChatItem) {
         return (
-          <ChatItemContainer key={item.id} $level={currentLevel}>
+          <ChatItemContainer
+            key={item.id}
+            $level={currentLevel}
+            draggable
+            onDragStart={(e) => handleDragStart(e, item)}
+          >
             {renderChatItem(item.id)}
           </ChatItemContainer>
         );
@@ -198,6 +236,10 @@ const FolderTree: FC<FolderTreeProps> = ({
               $isSelected={isSelected}
               onClick={(e) => handleItemClick(e, item)}
               onContextMenu={(e) => handleContextMenu(e, item)}
+              draggable={isFolder}
+              onDragStart={(e) => isFolder && handleDragStart(e, item)}
+              onDragOver={(e) => isFolder && handleDragOverFolder(e, item)}
+              onDrop={(e) => isFolder && handleDropOnFolder(e, item)}
             >
             <FolderItemContent>
               {isFolder && hasChildren ? (

@@ -262,6 +262,46 @@ const ChattingPage: FC = () => {
     [dispatch, folders]
   )
 
+  // Drag-and-drop handler from FolderTree
+  const handleDropToFolder = useCallback((source: { type: 'folder' | 'chat'; id: string }, targetFolderId: string) => {
+    const now = new Date().toISOString()
+    const targetFolder = folders.find((f) => f.id === targetFolderId)
+    if (!targetFolder) return
+
+    if (source.type === 'chat') {
+      const t = topicById.get(source.id)
+      if (!t) return
+      const prevFolderId = t.folderId || folders.find((f) => (f.topicIds || []).includes(t.id))?.id || ROOT_FOLDER_ID
+      if (prevFolderId === targetFolderId) return
+      // Move in folders slice and update topic.folderId
+      dispatch(foldersActions.moveTopics({ sourceFolderId: prevFolderId, targetFolderId, topicIds: [t.id] }))
+      dispatch(topicsActions.updateTopic({ ...t, folderId: targetFolderId, updatedAt: now }))
+      return
+    }
+
+    if (source.type === 'folder') {
+      const moving = folders.find((f) => f.id === source.id)
+      if (!moving) return
+      if (moving.id === ROOT_FOLDER_ID) return // do not reparent root
+      if (moving.id === targetFolderId) return // no-op
+      // Prevent moving into a descendant
+      const isDescendant = (ancestorId: string, maybeDescendantId: string): boolean => {
+        const stack = [ancestorId]
+        while (stack.length) {
+          const current = stack.pop()!
+          const children = folders.filter((f) => (f.parentFolderId ?? null) === current).map((f) => f.id)
+          if (children.includes(maybeDescendantId)) return true
+          stack.push(...children)
+        }
+        return false
+      }
+      if (isDescendant(moving.id, targetFolderId)) return
+      if (moving.parentFolderId === targetFolderId) return
+      dispatch(foldersActions.updateFolder({ ...moving, parentFolderId: targetFolderId, updatedAt: now }))
+      return
+    }
+  }, [dispatch, folders, topicById])
+
   if (!activeAssistant || !activeTopic) {
     return (
       <LoadingContainer>
@@ -306,6 +346,7 @@ const ChattingPage: FC = () => {
               onNewChat={handleNewChat}
               onRename={handleRename}
               onDelete={handleDelete}
+              onDropToFolder={handleDropToFolder}
               renderChatItem={(id) => {
                 const t = topicById.get(id)
                 if (!t || !activeAssistant) return null
