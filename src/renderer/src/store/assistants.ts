@@ -3,7 +3,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
-import { isEmpty, uniqBy } from 'lodash'
+import { isEmpty } from 'lodash'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
@@ -93,24 +93,26 @@ const assistantsSlice = createSlice({
       const topic = action.payload.topic
       topic.createdAt = topic.createdAt || new Date().toISOString()
       topic.updatedAt = topic.updatedAt || new Date().toISOString()
-      state.assistants = state.assistants.map((assistant) =>
-        assistant.id === action.payload.assistantId
-          ? {
-              ...assistant,
-              topics: uniqBy([topic, ...assistant.topics], 'id')
-            }
-          : assistant
-      )
+      state.assistants = state.assistants.map((assistant) => {
+        if (assistant.id !== action.payload.assistantId) return assistant
+        const existingIds = assistant.topicIds || []
+        const topicIds = [topic.id, ...existingIds].filter((id, idx, arr) => arr.indexOf(id) === idx)
+        return {
+          ...assistant,
+          topicIds
+        }
+      })
     },
     removeTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
-      state.assistants = state.assistants.map((assistant) =>
-        assistant.id === action.payload.assistantId
-          ? {
-              ...assistant,
-              topics: assistant.topics.filter(({ id }) => id !== action.payload.topic.id)
-            }
-          : assistant
-      )
+      state.assistants = state.assistants.map((assistant) => {
+        if (assistant.id !== action.payload.assistantId) return assistant
+        const existingIds = assistant.topicIds || []
+        const topicIds = existingIds.filter((id) => id !== action.payload.topic.id)
+        return {
+          ...assistant,
+          topicIds
+        }
+      })
     },
     updateTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
       const newTopic = action.payload.topic
@@ -143,10 +145,10 @@ const assistantsSlice = createSlice({
     removeAllTopics: (state, action: PayloadAction<{ assistantId: string }>) => {
       state.assistants = state.assistants.map((assistant) => {
         if (assistant.id === action.payload.assistantId) {
-          assistant.topics.forEach((topic) => TopicManager.removeTopic(topic.id))
+          assistant.topicIds.forEach((topicId) => TopicManager.removeTopic(topicId))
           return {
             ...assistant,
-            topics: [getDefaultTopic(assistant.id)]
+            topicIds: []
           }
         }
         return assistant

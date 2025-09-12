@@ -160,14 +160,13 @@ export function getAssistantById(id: string) {
 
 export async function createAssistantFromAgent(agent: Agent) {
   const assistantId = uuid()
-  const topic = getDefaultTopic(assistantId)
 
   const assistant: Assistant = {
     ...agent,
     id: assistantId,
     name: agent.name,
     emoji: agent.emoji,
-    topics: [topic],
+    topicIds: [],
     model: agent.defaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases

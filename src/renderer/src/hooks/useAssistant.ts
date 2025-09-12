@@ -43,7 +43,7 @@ export function useAssistants() {
         return
       }
       const index = assistants.findIndex((_assistant) => _assistant.id === assistant.id)
-      const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+      const _assistant: Assistant = { ...assistant, id: uuid(), topicIds: [] }
       if (index === -1) {
         logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
         dispatch(addAssistant(_assistant))
@@ -61,8 +61,8 @@ export function useAssistants() {
     removeAssistant: (id: string) => {
       dispatch(removeAssistant({ id }))
       const assistant = assistants.find((a) => a.id === id)
-      const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
+      const topics = assistant?.topicIds || []
+      topics.forEach((topicId) => TopicManager.removeTopic(topicId))
     }
   }
 }

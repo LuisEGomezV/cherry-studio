@@ -10,6 +10,7 @@ import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtim
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
+import { topicsOf } from '@renderer/utils/topics'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
 
@@ -52,14 +53,14 @@ export function useActiveTopic(assistantId: string, topic?: Topic) {
 
 export function useTopic(assistant: Assistant, topicId?: string) {
   const state = store.getState()
-  return (selectTopicById(state, topicId || '') || assistant?.topics?.find((topic) => topic.id === topicId)) as
+  return (selectTopicById(state, topicId || '') || topicsOf(assistant, state).find((topic) => topic.id === topicId)) as
     | Topic
     | undefined
 }
 
 export function getTopic(assistant: Assistant, topicId: string) {
   const state = store.getState()
-  return (selectTopicById(state, topicId) || assistant?.topics?.find((topic) => topic.id === topicId)) as
+  return (selectTopicById(state, topicId) || topicsOf(assistant, state).find((topic) => topic.id === topicId)) as
     | Topic
     | undefined
 }
@@ -69,7 +70,7 @@ export async function getTopicById(topicId: string) {
   const topic = selectTopicById(state, topicId) ||
     store
       .getState()
-      .assistants.assistants.map((assistant) => assistant.topics || []).flat()
+      .assistants.assistants.map((assistant) => topicsOf(assistant, state)).flat()
       .find((t) => t.id === topicId)
   const messages = await TopicManager.getTopicMessages(topicId)
   return { ...topic, messages } as Topic

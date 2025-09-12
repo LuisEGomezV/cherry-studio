@@ -16,7 +16,7 @@ export function topicsOf(assistant: Assistant, state?: RootState): Topic[] {
   const fromSlice = selectTopicsByIds(s, ids)
   if (fromSlice.length) return fromSlice
   // Fallback while migrating
-  return assistant.topics ?? []
+  return []
 }
 
 /** First topic for an assistant with fallback. */
@@ -32,7 +32,7 @@ export function topicCountOf(assistant: Assistant, state?: RootState): number {
 
 /** Topic IDs accessor with safe default. */
 export function topicIdsOf(assistant: Assistant): string[] {
-  return assistant.topicIds ?? (assistant.topics ? assistant.topics.map((t) => t.id) : [])
+  return assistant.topicIds ?? []
 }
 
 /**
