@@ -1,87 +1,82 @@
 #!/bin/bash
 set -e
 
-# Usage:
-#   ./update-upstream-stable.sh [current=vX.Y.Z]
+# -----------------------------
+# 1. Fetch upstream tags
+# -----------------------------
+git fetch upstream --tags
+git fetch origin
 
-# Ensure upstream exists
-if ! git remote get-url upstream &>/dev/null; then
-  echo "⚠️ No 'upstream' remote found. Add it with:"
-  echo "   git remote add upstream <URL-of-original-repo>"
+# -----------------------------
+# 2. Find the latest version-like tag (vX.Y.Z)
+# -----------------------------
+latest_tag=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+
+if [ -z "$latest_tag" ]; then
+  echo "❌ No version-like tags found!"
   exit 1
 fi
 
-# Parse parameter
-current_param=""
-for arg in "$@"; do
-  case $arg in
-    current=*)
-      current_param="${arg#current=}"
-      ;;
-  esac
-done
+echo "👉 Latest stable tag detected: $latest_tag"
 
-# Fetch tags
-git fetch upstream --tags
+# -----------------------------
+# 3. Ask user how to update upstream-stable
+# -----------------------------
+echo "Choose how to update upstream-stable:"
+echo "1) Merge the tag (preserve history)"
+echo "2) Force update via reset --hard (overwrite local branch)"
+read -p "Enter 1 or 2 [default 1]: " update_choice
 
-# Checkout branch
 git checkout upstream-stable
 
-# Determine current tag
-if [ -n "$current_param" ]; then
-  current_tag="$current_param"
+if [[ "$update_choice" == "2" ]]; then
+    echo "⚠️ You chose to force update. Local upstream-stable will be reset to $latest_tag"
+    read -p "Are you sure? This can overwrite commits. [y/N]: " force_confirm
+    if [[ "$force_confirm" =~ ^[Yy]$ ]]; then
+        git reset --hard "$latest_tag"
+        git push origin upstream-stable --force
+        echo "✅ upstream-stable has been force-updated to $latest_tag"
+    else
+        echo "❌ Force update canceled."
+        exit 0
+    fi
 else
-  current_tag=$(git describe --tags --abbrev=0 --exact-match 2>/dev/null || true)
+    git merge --no-ff "$latest_tag" -m "chore: update upstream-stable to $latest_tag"
+    git push origin upstream-stable
+    echo "✅ upstream-stable has been merged with $latest_tag"
 fi
 
-# Get all tags (including rc/beta), sorted by version
-all_tags=($(git tag --sort=v:refname))
-
-# If no current tag, pick first
-if [ -z "$current_tag" ]; then
-  current_tag="${all_tags[0]}"
+# -----------------------------
+# 4. Attempt rebase of main
+# -----------------------------
+read -p "Do you want to attempt rebasing main onto the updated upstream-stable? [y/N]: " rebase_confirm
+if [[ ! "$rebase_confirm" =~ ^[Yy]$ ]]; then
+    echo "❌ Skipping rebase."
+    echo "🎉 Script completed!"
+    exit 0
 fi
 
-echo "📌 Current tag on upstream-stable: $current_tag"
+git checkout main
 
-# Collect newer tags
-apply_tags=()
-found=false
-for tag in "${all_tags[@]}"; do
-  if [ "$tag" == "$current_tag" ]; then
-    found=true
-    continue
-  fi
-  if [ "$found" == true ]; then
-    apply_tags+=("$tag")
-  fi
-done
-
-if [ ${#apply_tags[@]} -eq 0 ]; then
-  echo "✅ Already up to date with the latest tag ($current_tag)"
-  exit 0
-fi
-
-echo "🆕 Tags to apply: ${apply_tags[*]}"
-
-# Ask confirmation
-read -p "Do you want to update upstream-stable through these tags? [y/N]: " answer
-if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-  echo "❌ Update canceled."
-  exit 1
-fi
-
-# Apply sequentially
-for tag in "${apply_tags[@]}"; do
-  echo "➡️ Updating to $tag ..."
-  git merge --ff-only "$tag" || {
-    echo "❌ Fast-forward failed at $tag. History might have diverged."
-    echo "You may need to reset manually:"
-    echo "   git reset --hard $tag"
+# Check for uncommitted changes
+if ! git diff-index --quiet HEAD --; then
+    echo "⚠️ main has uncommitted changes. Please stash or commit them first."
     exit 1
-  }
-done
+fi
 
-git push origin upstream-stable
+# Attempt rebase
+echo "➡️ Rebasing main onto upstream-stable..."
+if git rebase upstream-stable; then
+    echo "✅ Rebase completed successfully!"
+    # Push automatically using safe force
+    git push origin main --force-with-lease
+    echo "✅ main branch pushed to origin with --force-with-lease"
+else
+    echo "⚠️ Rebase encountered conflicts."
+    echo "Please resolve conflicts manually:"
+    echo "  git status          # see conflicting files"
+    echo "  git rebase --continue"
+    echo "  git rebase --abort  # if you want to cancel"
+fi
 
-echo "🎉 Updated upstream-stable to ${apply_tags[-1]}"
+echo "🎉 Script completed!"
