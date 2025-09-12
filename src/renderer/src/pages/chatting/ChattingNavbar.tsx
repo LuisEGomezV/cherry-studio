@@ -12,10 +12,11 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
+import { loggerService } from '@renderer/services/LoggerService'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search, FolderPlus } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import { FC, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from '../home/components/AssistantsDrawer'
@@ -35,6 +36,7 @@ interface Props {
 }
 
 const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic, onCreateTopic }) => {
+  const logger = loggerService.withContext('ChattingNavbar')
   const { assistant } = useAssistant(activeAssistant.id)
   const { assistant: topicAssistant } = useAssistant(activeTopic.assistantId)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
@@ -43,14 +45,24 @@ const ChattingNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, active
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
 
-  // Auto-sync navbar assistant with the active topic's assigned assistant
+  // Auto-sync navbar assistant with the active topic's assigned assistant (one-time to avoid loops)
+  const didInitialSyncRef = useRef(false)
   useEffect(() => {
+    if (didInitialSyncRef.current) return
     if (!activeTopic || !topicAssistant) return
     if (topicAssistant.id !== activeAssistant.id) {
+      logger.debug('One-time sync assistant to topic on mount', {
+        fromAssistantId: activeAssistant.id,
+        toAssistantId: topicAssistant.id,
+        topicId: activeTopic.id
+      })
+      didInitialSyncRef.current = true
       setActiveAssistant(topicAssistant)
+    } else {
+      logger.debug('Assistant already matches topic (no sync needed)', { assistantId: activeAssistant.id, topicId: activeTopic.id })
+      didInitialSyncRef.current = true
     }
-  }, [activeTopic?.assistantId, topicAssistant?.id, activeAssistant.id, setActiveAssistant])
-
+  }, [activeTopic?.id, topicAssistant?.id, activeAssistant.id, setActiveAssistant])
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
