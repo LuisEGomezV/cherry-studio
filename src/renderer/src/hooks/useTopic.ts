@@ -14,7 +14,6 @@ import { topicsOf } from '@renderer/utils/topics'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
 
-import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
 let _activeTopic: Topic

@@ -222,7 +222,7 @@ const migrateConfig = {
           assistant.name = i18n.t('chat.default.name')
         }
 
-        assistant.topics = assistant.topics.map((topic) => {
+        assistant.topics = assistant.topics?.map((topic) => {
           if (isEmpty(topic.name)) {
             topic.name = i18n.t('chat.default.topic.name')
           }
@@ -433,7 +433,7 @@ const migrateConfig = {
           ...state.assistants,
           assistants: state.assistants.assistants.map((assistant) => ({
             ...assistant,
-            topics: assistant.topics.map((topic) => ({
+            topics: assistant.topics?.map((topic) => ({
               ...topic,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
@@ -497,7 +497,7 @@ const migrateConfig = {
         assistants: {
           ...state.assistants,
           assistants: state.assistants.assistants.map((assistant) => {
-            assistant.topics = assistant.topics.map((topic) => ({
+            assistant.topics = assistant.topics?.map((topic) => ({
               ...topic,
               assistantId: assistant.id
             }))
@@ -575,7 +575,7 @@ const migrateConfig = {
   '34': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
-        assistant.topics.forEach((topic) => {
+        assistant.topics?.forEach((topic) => {
           topic.assistantId = assistant.id
           runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)

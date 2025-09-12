@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
-import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultAssistant } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty } from 'lodash'
 
@@ -121,7 +121,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: assistant.topics.map((topic) => {
+              topics: assistant.topics?.map((topic) => {
                 const _topic = topic.id === newTopic.id ? newTopic : topic
                 _topic.messages = []
                 return _topic
@@ -156,7 +156,7 @@ const assistantsSlice = createSlice({
     },
     updateTopicUpdatedAt: (state, action: PayloadAction<{ topicId: string }>) => {
       outer: for (const assistant of state.assistants) {
-        for (const topic of assistant.topics) {
+        for (const topic of assistant.topics || []) {
           if (topic.id === action.payload.topicId) {
             topic.updatedAt = new Date().toISOString()
             break outer
