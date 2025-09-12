@@ -302,6 +302,48 @@ const ChattingPage: FC = () => {
     }
   }, [dispatch, folders, topicById])
 
+  // Root-level drop: assign to ROOT folder or set parent to ROOT
+  const handleDropToRoot = useCallback((source: { type: 'folder' | 'chat'; id: string }) => {
+    const now = new Date().toISOString()
+    if (source.type === 'chat') {
+      const t = topicById.get(source.id)
+      if (!t) return
+      const prevFolderId = t.folderId || folders.find((f) => (f.topicIds || []).includes(t.id))?.id || ROOT_FOLDER_ID
+      if (prevFolderId === ROOT_FOLDER_ID) return
+      dispatch(foldersActions.moveTopics({ sourceFolderId: prevFolderId, targetFolderId: ROOT_FOLDER_ID, topicIds: [t.id] }))
+      dispatch(topicsActions.updateTopic({ ...t, folderId: ROOT_FOLDER_ID, updatedAt: now }))
+      return
+    }
+    if (source.type === 'folder') {
+      const moving = folders.find((f) => f.id === source.id)
+      if (!moving) return
+      if (moving.id === ROOT_FOLDER_ID) return
+      if (moving.parentFolderId === ROOT_FOLDER_ID) return
+      dispatch(foldersActions.updateFolder({ ...moving, parentFolderId: ROOT_FOLDER_ID, updatedAt: now }))
+      return
+    }
+  }, [dispatch, folders, topicById])
+
+  // Fallback handlers on the entire sidebar to ensure root-area drops are captured
+  const handleSidebarDragOverRoot = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  const handleSidebarDropRoot = useCallback((e: React.DragEvent) => {
+    // If a folder-row handled the drop, it will have stopPropagation'ed already
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      const raw =
+        e.dataTransfer.getData('application/x-folder-tree-item') ||
+        e.dataTransfer.getData('text/plain')
+      if (!raw) return
+      const payload = JSON.parse(raw) as { type: 'folder' | 'chat'; id: string }
+      handleDropToRoot(payload)
+    } catch {}
+  }, [handleDropToRoot])
+
   if (!activeAssistant || !activeTopic) {
     return (
       <LoadingContainer>
@@ -323,7 +365,7 @@ const ChattingPage: FC = () => {
       />
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         {showAssistants && (
-          <SidebarContainer>
+          <SidebarContainer onDragOver={handleSidebarDragOverRoot} onDrop={handleSidebarDropRoot}>
             <FolderTree
               data={buildFolderTreeData()}
               onSelect={(item) => {
@@ -347,6 +389,7 @@ const ChattingPage: FC = () => {
               onRename={handleRename}
               onDelete={handleDelete}
               onDropToFolder={handleDropToFolder}
+              onDropToRoot={handleDropToRoot}
               renderChatItem={(id) => {
                 const t = topicById.get(id)
                 if (!t || !activeAssistant) return null

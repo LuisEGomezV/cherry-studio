@@ -19,6 +19,8 @@ interface FolderTreeProps {
   renderChatItem?: (topicId: string) => React.ReactNode;
   // Drag and drop: dropping either a folder or chat into a folder target
   onDropToFolder?: (source: { type: 'folder' | 'chat'; id: string }, targetFolderId: string) => void;
+  // Drag and drop: dropping into the empty area should assign to root
+  onDropToRoot?: (source: { type: 'folder' | 'chat'; id: string }) => void;
 }
 
 const getIcon = (type: string, isOpen?: boolean) => {
@@ -45,6 +47,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   level = 0,
   renderChatItem,
   onDropToFolder,
+  onDropToRoot,
 }) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<FolderItem[]>(data);
@@ -149,6 +152,8 @@ const FolderTree: FC<FolderTreeProps> = ({
     try {
       const payload = JSON.stringify({ type: item.type === 'folder' ? 'folder' : 'chat', id: item.id });
       e.dataTransfer.setData(DRAG_MIME, payload);
+      // Fallback for environments that filter custom MIME types
+      e.dataTransfer.setData('text/plain', payload);
     } catch {}
     e.dataTransfer.effectAllowed = 'move';
   }, []);
@@ -170,6 +175,23 @@ const FolderTree: FC<FolderTreeProps> = ({
       onDropToFolder?.(payload, target.id);
     } catch {}
   }, [onDropToFolder]);
+
+  const handleDragOverRoot = useCallback((e: React.DragEvent) => {
+    // Allow dropping anywhere within the container that isn't handled by children
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDropOnRoot = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
+      if (!raw) return;
+      const payload = JSON.parse(raw) as { type: 'folder' | 'chat'; id: string };
+      onDropToRoot?.(payload);
+    } catch {}
+  }, [onDropToRoot]);
 
   const menuItems = [
     {
@@ -284,7 +306,7 @@ const FolderTree: FC<FolderTreeProps> = ({
     });
   };
 
-  return <Container>{renderTree(items, level)}</Container>;
+  return <Container onDragEnter={handleDragOverRoot} onDragOver={handleDragOverRoot} onDrop={handleDropOnRoot}>{renderTree(items, level)}</Container>;
 };
 
 export default FolderTree;
@@ -292,6 +314,7 @@ export default FolderTree;
 const Container = styled.div`
   user-select: none;
   width: 100%;
+  min-height: 100%;
 `;
 
 const FolderItemContainer = styled.div<{ $level: number; $isSelected: boolean }>`
