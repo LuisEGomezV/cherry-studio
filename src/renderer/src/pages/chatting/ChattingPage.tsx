@@ -6,6 +6,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { foldersActions, selectAllFolders, ROOT_FOLDER_ID } from '@renderer/store/folders'
 import { topicsActions, selectAllTopics } from '@renderer/store/topics'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { createTopic } from '@renderer/utils/topics'
 import type { FolderItem as UITreeItem } from '@renderer/types/folder'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -33,6 +34,12 @@ const ChattingPage: FC = () => {
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant?.id || '', state?.topic)
   const dispatch = useAppDispatch()
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+
+  useEffect(() => {
+    if (!activeTopic) return
+    dispatch(newMessagesActions.setTopicLoading({ topicId: activeTopic.id, loading: false }))
+    dispatch(newMessagesActions.setTopicFulfilled({ topicId: activeTopic.id, fulfilled: false }))
+  }, [activeTopic?.id, dispatch])
 
   // Real folders and topics from store
   const folders = useAppSelector(selectAllFolders)
