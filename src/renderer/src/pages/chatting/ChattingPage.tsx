@@ -83,35 +83,70 @@ const ChattingPage: FC = () => {
       const f = folderById.get(folderId)
       if (!f) return null
       const childFolderIds = byParent.get(f.id) || []
-      const childFolders = childFolderIds.map((id) => makeNode(id)).filter(Boolean) as UITreeItem[]
+      const childFolders = childFolderIds
+        .map((id) => {
+          const child = folderById.get(id)
+          const node = makeNode(id)
+          return node ? { ...node, sortOrder: child?.sortOrder ?? Infinity } : null
+        })
+        .filter(Boolean) as (UITreeItem & { sortOrder: number })[]
+      
       // Use topic.folderId as source of truth instead of folder.topicIds
       const folderTopics = (topicsByFolder.get(f.id) || [])
-        .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
+        .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const, sortOrder: t.sortOrder ?? Infinity }))
+      
+      // Sort folders and topics separately, folders always on top
+      const sortedFolders = childFolders.sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+        return a.name.localeCompare(b.name)
+      })
+      
+      const sortedTopics = folderTopics.sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+        return a.name.localeCompare(b.name)
+      })
+      
       return {
         id: f.id,
         name: f.name,
         type: 'folder',
         isOpen: !!f.isOpen,
-        children: [...childFolders, ...folderTopics]
+        children: [...sortedFolders, ...sortedTopics]
       }
     }
 
     const root = folderById.get(ROOT_FOLDER_ID)
     if (!root) return []
     const rootChildren = (byParent.get(ROOT_FOLDER_ID) || [])
-      .map((id) => makeNode(id))
-      .filter(Boolean) as UITreeItem[]
+      .map((id) => {
+        const child = folderById.get(id)
+        const node = makeNode(id)
+        return node ? { ...node, sortOrder: child?.sortOrder ?? Infinity } : null
+      })
+      .filter(Boolean) as (UITreeItem & { sortOrder: number })[]
+    
     // Use topic.folderId as source of truth for root topics
     const rootTopics = (topicsByFolder.get(ROOT_FOLDER_ID) || [])
-      .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
+      .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const, sortOrder: t.sortOrder ?? Infinity }))
 
     // Include topics with folderId pointing to non-existent folders (orphaned topics)
     const orphanedTopics = sliceTopics
       .filter((t) => t.folderId && !folderIdSet.has(t.folderId))
-      .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
+      .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const, sortOrder: t.sortOrder ?? Infinity }))
 
-    // Return only root contents, always open. Folders first, then topics (root-assigned), then orphaned topics
-    return [...rootChildren, ...rootTopics, ...orphanedTopics]
+    // Sort folders and topics separately, folders always on top
+    const sortedRootFolders = rootChildren.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+      return a.name.localeCompare(b.name)
+    })
+    
+    const allTopics = [...rootTopics, ...orphanedTopics]
+    const sortedRootTopics = allTopics.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+      return a.name.localeCompare(b.name)
+    })
+
+    return [...sortedRootFolders, ...sortedRootTopics]
   }, [folderById, byParent, topicsByFolder, folderIdSet, sliceTopics])
 
   // Handle any necessary side effects
@@ -145,7 +180,8 @@ const ChattingPage: FC = () => {
           topicIds: [],
           childFolderIds: [],
           createdAt: now,
-          updatedAt: now
+          updatedAt: now,
+          sortOrder: 0
         })
       )
       // Wait for next render cycle when root exists
@@ -177,6 +213,59 @@ const ChattingPage: FC = () => {
     if (topicsNeedingFolderId.length) {
       const updatedTopics = topicsNeedingFolderId.map((t) => ({ ...t, folderId: topicToFolder.get(t.id) || ROOT_FOLDER_ID }))
       dispatch(topicsActions.upsertTopics(updatedTopics))
+    }
+    
+    // Migration: Assign sortOrder to items that don't have it
+    // Group folders by parent to assign sortOrder within each parent
+    const foldersByParent = new Map<string, typeof folders>()
+    for (const f of folders) {
+      const parentId = f.parentFolderId ?? ROOT_FOLDER_ID
+      const siblings = foldersByParent.get(parentId) || []
+      siblings.push(f)
+      foldersByParent.set(parentId, siblings)
+    }
+    
+    const folderUpdates: Array<{ id: string; sortOrder: number }> = []
+    for (const [, siblings] of foldersByParent) {
+      const needingSortOrder = siblings.filter(f => f.sortOrder === undefined)
+      if (needingSortOrder.length > 0) {
+        // Sort by createdAt, then assign sequential sortOrder starting from 1000 (to leave room for new items at 0)
+        needingSortOrder
+          .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
+          .forEach((f, index) => {
+            folderUpdates.push({ id: f.id, sortOrder: 1000 + index })
+          })
+      }
+    }
+    
+    // Group topics by folder to assign sortOrder within each folder
+    const topicsByFolderId = new Map<string, typeof sliceTopics>()
+    for (const t of sliceTopics) {
+      const folderId = t.folderId ?? ROOT_FOLDER_ID
+      const siblings = topicsByFolderId.get(folderId) || []
+      siblings.push(t)
+      topicsByFolderId.set(folderId, siblings)
+    }
+    
+    const topicUpdates: Array<{ id: string; sortOrder: number }> = []
+    for (const [, siblings] of topicsByFolderId) {
+      const needingSortOrder = siblings.filter(t => t.sortOrder === undefined)
+      if (needingSortOrder.length > 0) {
+        // Sort by createdAt, then assign sequential sortOrder starting from 1000
+        needingSortOrder
+          .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
+          .forEach((t, index) => {
+            topicUpdates.push({ id: t.id, sortOrder: 1000 + index })
+          })
+      }
+    }
+    
+    // Dispatch batch updates if needed
+    if (folderUpdates.length > 0) {
+      dispatch(foldersActions.updateFolderSortOrders(folderUpdates))
+    }
+    if (topicUpdates.length > 0) {
+      dispatch(topicsActions.updateTopicSortOrders(topicUpdates))
     }
   }, [dispatch, folders, sliceTopics])
 
@@ -225,7 +314,8 @@ const ChattingPage: FC = () => {
           childFolderIds: [],
           isOpen: false,
           createdAt: now,
-          updatedAt: now
+          updatedAt: now,
+          sortOrder: 0  // New folders appear at the top
         })
       )
     },
@@ -253,6 +343,10 @@ const ChattingPage: FC = () => {
         logger.debug('Creating new topic', { assistantId: assistant.id, folderId })
         const topic = await createTopic(assistant.id, folderId)
         logger.info('New topic created', { topicId: topic.id, folderId })
+        
+        // Update topic with sortOrder: 0 so it appears at the top
+        dispatch(topicsActions.updateTopic({ ...topic, sortOrder: 0 }))
+        
         // Set as active
         setActiveTopic(topic)
         // Ensure the active assistant is set if it was empty
@@ -351,6 +445,71 @@ const ChattingPage: FC = () => {
     }
   }, [dispatch, folders, topicById])
 
+  // Reorder items within the same parent
+  const handleReorder = useCallback((
+    source: { type: 'folder' | 'chat'; id: string },
+    target: { type: 'folder' | 'chat'; id: string },
+    position: 'before' | 'after',
+    parentId?: string
+  ) => {
+    // Get all items in the same parent
+    const parentFolderId = parentId || ROOT_FOLDER_ID
+    const siblingFolders = folders.filter(f => (f.parentFolderId ?? ROOT_FOLDER_ID) === parentFolderId)
+    const siblingTopics = sliceTopics.filter(t => (t.folderId ?? ROOT_FOLDER_ID) === parentFolderId)
+    
+    type SortableItem = { id: string; type: 'folder' | 'chat'; sortOrder: number; name: string }
+    
+    // Sort folders and topics separately
+    const sortedFolders: SortableItem[] = siblingFolders
+      .map(f => ({ id: f.id, type: 'folder' as const, sortOrder: f.sortOrder ?? Infinity, name: f.name }))
+      .sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+        return a.name.localeCompare(b.name)
+      })
+    
+    const sortedTopics: SortableItem[] = siblingTopics
+      .map(t => ({ id: t.id, type: 'chat' as const, sortOrder: t.sortOrder ?? Infinity, name: t.name }))
+      .sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+        return a.name.localeCompare(b.name)
+      })
+    
+    // Reorder within the same type (folders with folders, topics with topics)
+    if (source.type !== target.type) {
+      // Can't reorder between different types
+      return
+    }
+    
+    const siblings = source.type === 'folder' ? sortedFolders : sortedTopics
+    
+    // Find source and target indices
+    const sourceIndex = siblings.findIndex(item => item.id === source.id)
+    const targetIndex = siblings.findIndex(item => item.id === target.id)
+    
+    if (sourceIndex === -1 || targetIndex === -1) return
+    if (sourceIndex === targetIndex) return
+    
+    // Remove source from list
+    const [sourceItem] = siblings.splice(sourceIndex, 1)
+    
+    // Calculate new target index after removal
+    const newTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
+    const insertIndex = position === 'before' ? newTargetIndex : newTargetIndex + 1
+    
+    // Insert at new position
+    siblings.splice(insertIndex, 0, sourceItem)
+    
+    // Reassign sortOrder values (0, 1, 2, ...)
+    const updates = siblings.map((item, index) => ({ id: item.id, sortOrder: index }))
+    
+    // Dispatch batch updates
+    if (source.type === 'folder') {
+      dispatch(foldersActions.updateFolderSortOrders(updates))
+    } else {
+      dispatch(topicsActions.updateTopicSortOrders(updates))
+    }
+  }, [dispatch, folders, sliceTopics])
+
   // Fallback handlers on the entire sidebar to ensure root-area drops are captured
   const handleSidebarDragOverRoot = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -424,6 +583,7 @@ const ChattingPage: FC = () => {
               onDelete={handleDelete}
               onDropToFolder={handleDropToFolder}
               onDropToRoot={handleDropToRoot}
+              onReorder={handleReorder}
               renderChatItem={(id) => {
                 const t = topicById.get(id)
                 if (!t || !activeAssistant) return null

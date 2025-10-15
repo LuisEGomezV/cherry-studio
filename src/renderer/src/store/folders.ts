@@ -171,6 +171,19 @@ const foldersSlice = createSlice({
         }
       }
       // If no targetFolderId, topics become unassigned (implicitly in root)
+    },
+    // Batch update folder sort orders (for reordering within same parent)
+    updateFolderSortOrders: (
+      state,
+      action: PayloadAction<Array<{ id: string; sortOrder: number }>>
+    ) => {
+      const now = new Date().toISOString()
+      for (const { id, sortOrder } of action.payload) {
+        const folder = state.entities[id]
+        if (folder) {
+          foldersAdapter.updateOne(state, { id, changes: { sortOrder, updatedAt: now } })
+        }
+      }
     }
   }
 })

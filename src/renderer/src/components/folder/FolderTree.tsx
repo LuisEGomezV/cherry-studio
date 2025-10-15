@@ -21,6 +21,8 @@ interface FolderTreeProps {
   onDropToFolder?: (source: { type: 'folder' | 'chat'; id: string }, targetFolderId: string) => void;
   // Drag and drop: dropping into the empty area should assign to root
   onDropToRoot?: (source: { type: 'folder' | 'chat'; id: string }) => void;
+  // Drag and drop: reordering items within the same parent
+  onReorder?: (source: { type: 'folder' | 'chat'; id: string }, target: { type: 'folder' | 'chat'; id: string }, position: 'before' | 'after', parentId?: string) => void;
   // Optional: controlled open/closed state handler. If provided, component will not manage open state internally.
   onToggleFolder?: (id: string, open: boolean) => void;
 }
@@ -50,6 +52,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   renderChatItem,
   onDropToFolder,
   onDropToRoot,
+  onReorder,
   onToggleFolder,
 }) => {
   const { t } = useTranslation();
@@ -58,6 +61,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ itemId: string; position: 'before' | 'after' } | null>(null);
 
   // Keep internal state in sync with external data updates
   useEffect(() => {
@@ -168,23 +172,81 @@ const FolderTree: FC<FolderTreeProps> = ({
     e.dataTransfer.effectAllowed = 'move';
   }, []);
 
-  const handleDragOverFolder = useCallback((e: React.DragEvent, item: FolderItem) => {
-    if (item.type !== 'folder') return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  const handleDropOnFolder = useCallback((e: React.DragEvent, target: FolderItem) => {
-    if (target.type !== 'folder') return;
+  const handleDragOverItem = useCallback((e: React.DragEvent, item: FolderItem) => {
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const relativeY = e.clientY - rect.top;
+    const height = rect.height;
+    
+    // For folders: if hovering over middle 50%, show as "drop into folder" (no indicator)
+    // Otherwise show reorder indicator
+    if (item.type === 'folder') {
+      const topThreshold = height * 0.25;
+      const bottomThreshold = height * 0.75;
+      
+      if (relativeY < topThreshold) {
+        setDropIndicator({ itemId: item.id, position: 'before' });
+      } else if (relativeY > bottomThreshold) {
+        setDropIndicator({ itemId: item.id, position: 'after' });
+      } else {
+        // Middle zone - will drop into folder
+        setDropIndicator(null);
+      }
+    } else {
+      // For topics: simple before/after based on midpoint
+      const position = relativeY < height / 2 ? 'before' : 'after';
+      setDropIndicator({ itemId: item.id, position });
+    }
+  }, []);
+  
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if leaving the entire tree area
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+      setDropIndicator(null);
+    }
+  }, []);
+
+  const handleDropOnItem = useCallback((e: React.DragEvent, target: FolderItem, parentId?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropIndicator(null);
+    
     try {
       const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
       if (!raw) return;
       const payload = JSON.parse(raw) as { type: 'folder' | 'chat'; id: string };
-      onDropToFolder?.(payload, target.id);
+      
+      // Don't drop on self
+      if (payload.id === target.id) return;
+      
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const relativeY = e.clientY - rect.top;
+      const height = rect.height;
+      
+      // For folders: check if dropping in middle zone (move into folder)
+      if (target.type === 'folder') {
+        const topThreshold = height * 0.25;
+        const bottomThreshold = height * 0.75;
+        
+        if (relativeY >= topThreshold && relativeY <= bottomThreshold) {
+          // Middle zone - move into folder
+          onDropToFolder?.(payload, target.id);
+          return;
+        }
+      }
+      
+      // Otherwise, treat as reordering
+      if (onReorder) {
+        const position = relativeY < height / 2 ? 'before' : 'after';
+        const targetInfo = { type: target.type === 'folder' ? 'folder' as const : 'chat' as const, id: target.id };
+        onReorder(payload, targetInfo, position, parentId);
+      }
     } catch {}
-  }, [onDropToFolder]);
+  }, [onDropToFolder, onReorder]);
 
   const handleDragOverRoot = useCallback((e: React.DragEvent) => {
     // Allow dropping anywhere within the container that isn't handled by children
@@ -195,6 +257,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   const handleDropOnRoot = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setDropIndicator(null);
     try {
       const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
       if (!raw) return;
@@ -202,6 +265,10 @@ const FolderTree: FC<FolderTreeProps> = ({
       onDropToRoot?.(payload);
     } catch {}
   }, [onDropToRoot]);
+  
+  const handleDragEnd = useCallback(() => {
+    setDropIndicator(null);
+  }, []);
 
   const menuItems = [
     {
@@ -233,30 +300,40 @@ const FolderTree: FC<FolderTreeProps> = ({
     },
   ];
 
-  const renderTree = (items: FolderItem[], currentLevel: number) => {
+  const renderTree = (items: FolderItem[], currentLevel: number, parentId?: string) => {
     return items.map((item) => {
       const hasChildren = item.children && item.children.length > 0;
       const isFolder = item.type === 'folder';
       const isSelected = selectedId === item.id;
       const isOpen = !!item.isOpen; // Default to closed if not specified
+      const showDropBefore = dropIndicator?.itemId === item.id && dropIndicator?.position === 'before';
+      const showDropAfter = dropIndicator?.itemId === item.id && dropIndicator?.position === 'after';
 
       // If this is a chat item and a custom renderer is provided, render it directly
       // without FolderTree's default container and context menu.
       if (item.type === 'chat' && renderChatItem) {
         return (
-          <ChatItemContainer
-            key={item.id}
-            $level={currentLevel}
-            draggable
-            onDragStart={(e) => handleDragStart(e, item)}
-          >
-            {renderChatItem(item.id)}
-          </ChatItemContainer>
+          <div key={item.id} style={{ position: 'relative' }}>
+            {showDropBefore && <DropIndicator />}
+            <ChatItemContainer
+              $level={currentLevel}
+              draggable
+              onDragStart={(e) => handleDragStart(e, item)}
+              onDragOver={(e) => handleDragOverItem(e, item)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDropOnItem(e, item, parentId)}
+              onDragEnd={handleDragEnd}
+            >
+              {renderChatItem(item.id)}
+            </ChatItemContainer>
+            {showDropAfter && <DropIndicator />}
+          </div>
         );
       }
 
       return (
-        <div key={item.id}>
+        <div key={item.id} style={{ position: 'relative' }}>
+          {showDropBefore && <DropIndicator />}
           <Dropdown 
             menu={{ items: menuItems, onClick: handleMenuClick }}
             trigger={['contextMenu']}
@@ -268,10 +345,12 @@ const FolderTree: FC<FolderTreeProps> = ({
               $isSelected={isSelected}
               onClick={(e) => handleItemClick(e, item)}
               onContextMenu={(e) => handleContextMenu(e, item)}
-              draggable={isFolder}
-              onDragStart={(e) => isFolder && handleDragStart(e, item)}
-              onDragOver={(e) => isFolder && handleDragOverFolder(e, item)}
-              onDrop={(e) => isFolder && handleDropOnFolder(e, item)}
+              draggable
+              onDragStart={(e) => handleDragStart(e, item)}
+              onDragOver={(e) => handleDragOverItem(e, item)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDropOnItem(e, item, parentId)}
+              onDragEnd={handleDragEnd}
             >
             <FolderItemContent>
               {isFolder && hasChildren ? (
@@ -306,11 +385,13 @@ const FolderTree: FC<FolderTreeProps> = ({
             </FolderItemContent>
             </FolderItemContainer>
           </Dropdown>
+          {showDropAfter && !isOpen && <DropIndicator />}
           {isFolder && isOpen && hasChildren && (
             <ChildrenContainer $level={currentLevel}>
-              {renderTree(item.children || [], currentLevel + 1)}
+              {renderTree(item.children || [], currentLevel + 1, item.id)}
             </ChildrenContainer>
           )}
+          {showDropAfter && isOpen && <DropIndicator />}
         </div>
       );
     });
@@ -426,5 +507,25 @@ const ChatItemContainer = styled.div<{ $level: number }>`
   /* Slightly overlap consecutive items to reduce the empty space between them */
   & + & {
     margin-top: -2px;
+  }
+`;
+
+const DropIndicator = styled.div`
+  height: 2px;
+  background: var(--color-primary);
+  margin: 2px 8px;
+  border-radius: 1px;
+  pointer-events: none;
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary);
   }
 `;

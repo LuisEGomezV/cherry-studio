@@ -205,6 +205,8 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  // Manual sort order within parent folder (lower values appear first, new items get 0)
+  sortOrder?: number
 }
 
 // Folder entity used for storing folders and topic assignments
@@ -222,6 +224,8 @@ export type Folder = {
   updatedAt?: string
   // UI state: whether this folder is expanded in the sidebar tree
   isOpen?: boolean
+  // Manual sort order within parent folder (lower values appear first, new items get 0)
+  sortOrder?: number
 }
 
 export type User = {

@@ -53,6 +53,19 @@ const topicsSlice = createSlice({
       // ensure unique by id
       const items = uniqBy(action.payload.map(sanitizeTopic), 'id')
       topicsAdapter.setAll(state, items)
+    },
+    // Batch update topic sort orders (for reordering within same folder)
+    updateTopicSortOrders: (
+      state,
+      action: PayloadAction<Array<{ id: string; sortOrder: number }>>
+    ) => {
+      const now = new Date().toISOString()
+      for (const { id, sortOrder } of action.payload) {
+        const topic = state.entities[id]
+        if (topic) {
+          topicsAdapter.updateOne(state, { id, changes: { sortOrder, updatedAt: now } })
+        }
+      }
     }
   }
 })
