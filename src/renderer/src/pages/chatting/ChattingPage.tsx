@@ -10,7 +10,7 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { createTopic } from '@renderer/utils/topics'
 import type { FolderItem as UITreeItem } from '@renderer/types/folder'
 import { loggerService } from '@renderer/services/LoggerService'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 import ChattingNavbar from './ChattingNavbar'
@@ -46,8 +46,12 @@ const ChattingPage: FC = () => {
   const sliceTopics = useAppSelector(selectAllTopics)
   const topicById = new Map(sliceTopics.map((t) => [t.id, t]))
 
-  const buildFolderTreeData = useCallback((): UITreeItem[] => {
-    // Build from real root folder: show its contents (topics and child folders), not the root node itself
+  // Memoize expensive lookups - only rebuild when data changes, not on isOpen toggles
+  const { folderById, byParent, topicsByFolder, folderIdSet } = useMemo(() => {
+    // O(1) folder lookups
+    const folderById = new Map(folders.map((f) => [f.id, f]))
+    
+    // Parent-child folder relationships
     const byParent = new Map<string, string[]>()
     for (const f of folders) {
       const parent = f.parentFolderId ?? ''
@@ -56,15 +60,33 @@ const ChattingPage: FC = () => {
       byParent.set(parent, arr)
     }
 
+    // Group topics by folderId (single source of truth)
+    const topicsByFolder = new Map<string, Topic[]>()
+    for (const topic of sliceTopics) {
+      const folderId = topic.folderId || ROOT_FOLDER_ID
+      const arr = topicsByFolder.get(folderId) || []
+      arr.push(topic)
+      topicsByFolder.set(folderId, arr)
+    }
+
+    // Set of valid folder IDs for orphan detection
+    const folderIdSet = new Set(folders.map((f) => f.id))
+
+    return { folderById, byParent, topicsByFolder, folderIdSet }
+  }, [folders, sliceTopics])
+
+  const buildFolderTreeData = useCallback((): UITreeItem[] => {
+    // Build from real root folder: show its contents (topics and child folders), not the root node itself
+    // Use topic.folderId as the single source of truth to prevent duplicates
+    
     const makeNode = (folderId: string): UITreeItem | null => {
-      const f = folders.find((x) => x.id === folderId)
+      const f = folderById.get(folderId)
       if (!f) return null
       const childFolderIds = byParent.get(f.id) || []
       const childFolders = childFolderIds.map((id) => makeNode(id)).filter(Boolean) as UITreeItem[]
-      const folderTopics = (f.topicIds || [])
-        .map((id) => topicById.get(id))
-        .filter(Boolean)
-        .map((t) => ({ id: t!.id, name: t!.name, type: 'chat' as const }))
+      // Use topic.folderId as source of truth instead of folder.topicIds
+      const folderTopics = (topicsByFolder.get(f.id) || [])
+        .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
       return {
         id: f.id,
         name: f.name,
@@ -74,26 +96,23 @@ const ChattingPage: FC = () => {
       }
     }
 
-    const root = folders.find((f) => f.id === ROOT_FOLDER_ID)
+    const root = folderById.get(ROOT_FOLDER_ID)
     if (!root) return []
     const rootChildren = (byParent.get(ROOT_FOLDER_ID) || [])
       .map((id) => makeNode(id))
       .filter(Boolean) as UITreeItem[]
-    const rootTopics = (root.topicIds || [])
-      .map((id) => topicById.get(id))
-      .filter(Boolean)
-      .map((t) => ({ id: t!.id, name: t!.name, type: 'chat' as const }))
-
-    // Include any topics not assigned to any folder yet (e.g., during first-run migration)
-    const assignedSet = new Set<string>()
-    for (const f of folders) for (const id of f.topicIds || []) assignedSet.add(id)
-    const unassignedExtras = sliceTopics
-      .filter((t) => !assignedSet.has(t.id))
+    // Use topic.folderId as source of truth for root topics
+    const rootTopics = (topicsByFolder.get(ROOT_FOLDER_ID) || [])
       .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
 
-    // Return only root contents, always open. Folders first, then topics (root-assigned), then unassigned extras
-    return [...rootChildren, ...rootTopics, ...unassignedExtras]
-  }, [folders, topicById, sliceTopics])
+    // Include topics with folderId pointing to non-existent folders (orphaned topics)
+    const orphanedTopics = sliceTopics
+      .filter((t) => t.folderId && !folderIdSet.has(t.folderId))
+      .map((t) => ({ id: t.id, name: t.name, type: 'chat' as const }))
+
+    // Return only root contents, always open. Folders first, then topics (root-assigned), then orphaned topics
+    return [...rootChildren, ...rootTopics, ...orphanedTopics]
+  }, [folderById, byParent, topicsByFolder, folderIdSet, sliceTopics])
 
   // Handle any necessary side effects
   useEffect(() => {
