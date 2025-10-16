@@ -445,17 +445,62 @@ const ChattingPage: FC = () => {
     }
   }, [dispatch, folders, topicById])
 
-  // Reorder items within the same parent
+  // Reorder items within the same parent (or move to target's parent and reorder)
   const handleReorder = useCallback((
     source: { type: 'folder' | 'chat'; id: string },
     target: { type: 'folder' | 'chat'; id: string },
     position: 'before' | 'after',
     parentId?: string
   ) => {
-    // Get all items in the same parent
-    const parentFolderId = parentId || ROOT_FOLDER_ID
-    const siblingFolders = folders.filter(f => (f.parentFolderId ?? ROOT_FOLDER_ID) === parentFolderId)
-    const siblingTopics = sliceTopics.filter(t => (t.folderId ?? ROOT_FOLDER_ID) === parentFolderId)
+    const now = new Date().toISOString()
+    
+    // Can't reorder between different types
+    if (source.type !== target.type) return
+    
+    // Determine target's parent folder
+    const targetParentFolderId = parentId || ROOT_FOLDER_ID
+    
+    // Determine source's current parent folder
+    let sourceParentFolderId: string
+    if (source.type === 'folder') {
+      const sourceFolder = folders.find(f => f.id === source.id)
+      sourceParentFolderId = sourceFolder?.parentFolderId ?? ROOT_FOLDER_ID
+    } else {
+      const sourceTopic = topicById.get(source.id)
+      sourceParentFolderId = sourceTopic?.folderId ?? ROOT_FOLDER_ID
+    }
+    
+    // If moving to a different folder, handle the move first
+    if (sourceParentFolderId !== targetParentFolderId) {
+      if (source.type === 'folder') {
+        const sourceFolder = folders.find(f => f.id === source.id)
+        if (sourceFolder) {
+          dispatch(foldersActions.updateFolder({ 
+            ...sourceFolder, 
+            parentFolderId: targetParentFolderId, 
+            updatedAt: now 
+          }))
+        }
+      } else {
+        const sourceTopic = topicById.get(source.id)
+        if (sourceTopic) {
+          dispatch(foldersActions.moveTopics({ 
+            sourceFolderId: sourceParentFolderId, 
+            targetFolderId: targetParentFolderId, 
+            topicIds: [source.id] 
+          }))
+          dispatch(topicsActions.updateTopic({ 
+            ...sourceTopic, 
+            folderId: targetParentFolderId, 
+            updatedAt: now 
+          }))
+        }
+      }
+    }
+    
+    // Get all items in the target parent folder
+    const siblingFolders = folders.filter(f => (f.parentFolderId ?? ROOT_FOLDER_ID) === targetParentFolderId)
+    const siblingTopics = sliceTopics.filter(t => (t.folderId ?? ROOT_FOLDER_ID) === targetParentFolderId)
     
     type SortableItem = { id: string; type: 'folder' | 'chat'; sortOrder: number; name: string }
     
@@ -474,19 +519,28 @@ const ChattingPage: FC = () => {
         return a.name.localeCompare(b.name)
       })
     
-    // Reorder within the same type (folders with folders, topics with topics)
-    if (source.type !== target.type) {
-      // Can't reorder between different types
-      return
-    }
-    
     const siblings = source.type === 'folder' ? sortedFolders : sortedTopics
     
     // Find source and target indices
-    const sourceIndex = siblings.findIndex(item => item.id === source.id)
+    let sourceIndex = siblings.findIndex(item => item.id === source.id)
     const targetIndex = siblings.findIndex(item => item.id === target.id)
     
-    if (sourceIndex === -1 || targetIndex === -1) return
+    if (targetIndex === -1) return
+    
+    // If source not found (cross-folder move), add it to the list
+    if (sourceIndex === -1) {
+      const sourceItem: SortableItem = {
+        id: source.id,
+        type: source.type,
+        sortOrder: Infinity,
+        name: source.type === 'folder' 
+          ? folders.find(f => f.id === source.id)?.name || ''
+          : topicById.get(source.id)?.name || ''
+      }
+      siblings.push(sourceItem)
+      sourceIndex = siblings.length - 1
+    }
+    
     if (sourceIndex === targetIndex) return
     
     // Remove source from list
@@ -508,7 +562,7 @@ const ChattingPage: FC = () => {
     } else {
       dispatch(topicsActions.updateTopicSortOrders(updates))
     }
-  }, [dispatch, folders, sliceTopics])
+  }, [dispatch, folders, sliceTopics, topicById])
 
   // Fallback handlers on the entire sidebar to ensure root-area drops are captured
   const handleSidebarDragOverRoot = useCallback((e: React.DragEvent) => {

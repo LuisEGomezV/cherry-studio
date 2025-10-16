@@ -182,27 +182,29 @@ const FolderTree: FC<FolderTreeProps> = ({
     const relativeY = e.clientY - rect.top;
     const height = rect.height;
     
-    // For folders: if hovering over middle 50%, show as "drop into folder" (no indicator)
-    // Otherwise show reorder indicator
+    // Use fixed 12px edge zones for consistent, predictable behavior
+    const EDGE_SIZE = 12;
+    
     if (item.type === 'folder') {
-      const topThreshold = height * 0.25;
-      const bottomThreshold = height * 0.75;
-      
-      if (relativeY < topThreshold) {
+      // For folders: top edge = before, bottom edge = after, middle = drop into
+      if (relativeY < EDGE_SIZE) {
         setDropIndicator({ itemId: item.id, position: 'before' });
         setFolderDropTarget(null);
-      } else if (relativeY > bottomThreshold) {
+      } else if (relativeY > height - EDGE_SIZE) {
         setDropIndicator({ itemId: item.id, position: 'after' });
         setFolderDropTarget(null);
       } else {
-        // Middle zone - will drop into folder
+        // Middle zone - drop into folder
         setDropIndicator(null);
         setFolderDropTarget(item.id);
       }
     } else {
-      // For topics: simple before/after based on midpoint
-      const position = relativeY < height / 2 ? 'before' : 'after';
-      setDropIndicator({ itemId: item.id, position });
+      // For topics: simple top/bottom split
+      if (relativeY < height / 2) {
+        setDropIndicator({ itemId: item.id, position: 'before' });
+      } else {
+        setDropIndicator({ itemId: item.id, position: 'after' });
+      }
       setFolderDropTarget(null);
     }
   }, []);
@@ -234,19 +236,18 @@ const FolderTree: FC<FolderTreeProps> = ({
       const relativeY = e.clientY - rect.top;
       const height = rect.height;
       
+      const EDGE_SIZE = 12;
+      
       // For folders: check if dropping in middle zone (move into folder)
       if (target.type === 'folder') {
-        const topThreshold = height * 0.25;
-        const bottomThreshold = height * 0.75;
-        
-        if (relativeY >= topThreshold && relativeY <= bottomThreshold) {
+        if (relativeY >= EDGE_SIZE && relativeY <= height - EDGE_SIZE) {
           // Middle zone - move into folder
           onDropToFolder?.(payload, target.id);
           return;
         }
       }
       
-      // Otherwise, treat as reordering
+      // Otherwise, treat as reordering (with potential cross-folder move)
       if (onReorder) {
         const position = relativeY < height / 2 ? 'before' : 'after';
         const targetInfo = { type: target.type === 'folder' ? 'folder' as const : 'chat' as const, id: target.id };
