@@ -62,6 +62,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   const [editValue, setEditValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dropIndicator, setDropIndicator] = useState<{ itemId: string; position: 'before' | 'after' } | null>(null);
+  const [folderDropTarget, setFolderDropTarget] = useState<string | null>(null);
 
   // Keep internal state in sync with external data updates
   useEffect(() => {
@@ -189,16 +190,20 @@ const FolderTree: FC<FolderTreeProps> = ({
       
       if (relativeY < topThreshold) {
         setDropIndicator({ itemId: item.id, position: 'before' });
+        setFolderDropTarget(null);
       } else if (relativeY > bottomThreshold) {
         setDropIndicator({ itemId: item.id, position: 'after' });
+        setFolderDropTarget(null);
       } else {
         // Middle zone - will drop into folder
         setDropIndicator(null);
+        setFolderDropTarget(item.id);
       }
     } else {
       // For topics: simple before/after based on midpoint
       const position = relativeY < height / 2 ? 'before' : 'after';
       setDropIndicator({ itemId: item.id, position });
+      setFolderDropTarget(null);
     }
   }, []);
   
@@ -207,6 +212,7 @@ const FolderTree: FC<FolderTreeProps> = ({
     const relatedTarget = e.relatedTarget as HTMLElement;
     if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
       setDropIndicator(null);
+      setFolderDropTarget(null);
     }
   }, []);
 
@@ -214,6 +220,7 @@ const FolderTree: FC<FolderTreeProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setDropIndicator(null);
+    setFolderDropTarget(null);
     
     try {
       const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
@@ -268,6 +275,7 @@ const FolderTree: FC<FolderTreeProps> = ({
   
   const handleDragEnd = useCallback(() => {
     setDropIndicator(null);
+    setFolderDropTarget(null);
   }, []);
 
   const menuItems = [
@@ -308,6 +316,7 @@ const FolderTree: FC<FolderTreeProps> = ({
       const isOpen = !!item.isOpen; // Default to closed if not specified
       const showDropBefore = dropIndicator?.itemId === item.id && dropIndicator?.position === 'before';
       const showDropAfter = dropIndicator?.itemId === item.id && dropIndicator?.position === 'after';
+      const isFolderDropTarget = isFolder && folderDropTarget === item.id;
 
       // If this is a chat item and a custom renderer is provided, render it directly
       // without FolderTree's default container and context menu.
@@ -343,6 +352,7 @@ const FolderTree: FC<FolderTreeProps> = ({
             <FolderItemContainer
               $level={currentLevel}
               $isSelected={isSelected}
+              $isDropTarget={isFolderDropTarget}
               onClick={(e) => handleItemClick(e, item)}
               onContextMenu={(e) => handleContextMenu(e, item)}
               draggable
@@ -408,7 +418,7 @@ const Container = styled.div`
   min-height: 100%;
 `;
 
-const FolderItemContainer = styled.div<{ $level: number; $isSelected: boolean }>`
+const FolderItemContainer = styled.div<{ $level: number; $isSelected: boolean; $isDropTarget?: boolean }>`
   display: flex;
   align-items: center;
   padding: 6px 8px 6px ${(props) => 8 + props.$level * 16}px;
@@ -418,10 +428,15 @@ const FolderItemContainer = styled.div<{ $level: number; $isSelected: boolean }>
   transition: background-color 0.2s;
   color: var(--color-text);
   background-color: ${(props) =>
-    props.$isSelected ? 'var(--color-primary-light)' : 'transparent'};
+    props.$isDropTarget
+      ? 'var(--color-primary-mute)'
+      : props.$isSelected
+      ? 'var(--color-primary-light)'
+      : 'transparent'};
 
   &:hover {
-    background-color: var(--color-bg-hover);
+    background-color: ${(props) =>
+      props.$isDropTarget ? 'var(--color-primary-mute)' : 'var(--color-bg-hover)'};
   }
 `;
 
@@ -513,10 +528,12 @@ const ChatItemContainer = styled.div<{ $level: number }>`
 const DropIndicator = styled.div`
   height: 2px;
   background: var(--color-primary);
-  margin: 2px 8px;
   border-radius: 1px;
   pointer-events: none;
-  position: relative;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -2px;
   
   &::before {
     content: '';
