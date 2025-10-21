@@ -47,15 +47,16 @@ else
 fi
 
 # -----------------------------
-# 4. Attempt rebase of main
+# 4. Offer to merge into main
 # -----------------------------
-read -p "Do you want to attempt rebasing main onto the updated upstream-stable? [y/N]: " rebase_confirm
-if [[ ! "$rebase_confirm" =~ ^[Yy]$ ]]; then
-    echo "❌ Skipping rebase."
+read -p "Do you want to merge upstream-stable into main? [y/N]: " merge_confirm
+if [[ ! "$merge_confirm" =~ ^[Yy]$ ]]; then
+    echo "❌ Skipping main merge."
     echo "🎉 Script completed!"
     exit 0
 fi
 
+# Switch to main
 git checkout main
 
 # Check for uncommitted changes
@@ -64,19 +65,19 @@ if ! git diff-index --quiet HEAD --; then
     exit 1
 fi
 
-# Attempt rebase
-echo "➡️ Rebasing main onto upstream-stable..."
-if git rebase upstream-stable; then
-    echo "✅ Rebase completed successfully!"
-    # Push automatically using safe force
-    git push origin main --force-with-lease
-    echo "✅ main branch pushed to origin with --force-with-lease"
+# Merge upstream-stable into main
+echo "➡️ Merging upstream-stable into main..."
+if git merge --no-ff upstream-stable -m "chore: merge upstream-stable into main"; then
+    echo "✅ Merge completed successfully!"
+    git push origin main
+    echo "✅ main branch pushed to origin"
 else
-    echo "⚠️ Rebase encountered conflicts."
-    echo "Please resolve conflicts manually:"
-    echo "  git status          # see conflicting files"
-    echo "  git rebase --continue"
-    echo "  git rebase --abort  # if you want to cancel"
+    echo "⚠️ Merge encountered conflicts."
+    echo "Please resolve them manually, then run:"
+    echo "  git add <resolved-files>"
+    echo "  git merge --continue"
+    echo "Or abort with:"
+    echo "  git merge --abort"
 fi
 
 echo "🎉 Script completed!"
