@@ -106,9 +106,15 @@ Cherry Studio is a cross-platform desktop AI client that provides unified access
     - `[Change] Replace rebase workflow with merge workflow`
 
 - **Update Workflow**:
-  - Use `scripts/update_upsteam.sh` to sync with upstream releases
-  - `upstream-stable` is kept clean (direct tag references only)
-  - Changes are merged (not rebased) into `main`
+  - **Automated**: Use GitHub Actions workflow `.github/workflows/sync-upstream.yml`
+    - Manual trigger only (no scheduled runs)
+    - Implements merging rebase strategy with `git range-diff` duplicate detection
+    - Always creates PR for manual review before merging
+    - See `docs/UPSTREAM_SYNC.md` for detailed usage
+  - **Manual fallback**: Use `scripts/merging-rebase-sync.sh` for local testing
+  - `upstream-stable` is kept clean via fake merge (`git merge -s ours <tag>`)
+  - Custom commits are rebased onto new upstream
+  - Range-diff auto-detects upstreamed commits to eliminate false conflicts
 
 - **Pre-commit Hooks**: Husky runs linting and formatting on staged files
 

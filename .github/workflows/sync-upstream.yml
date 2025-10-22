@@ -1,0 +1,211 @@
+name: Sync Upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Upstream version tag (e.g., v2.9.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync Fork with Upstream
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Check Git version
+        id: git-version
+        run: |
+          git_version=$(git --version | grep -oP '\d+\.\d+')
+          echo "version=$git_version" >> $GITHUB_OUTPUT
+          echo "📌 Git version: $git_version"
+          
+          # Check if Git 2.19+ (required for range-diff)
+          if [[ $(echo "$git_version 2.19" | awk '{print ($1 >= $2)}') -eq 0 ]]; then
+            echo "❌ ERROR: Git 2.19+ required for range-diff support"
+            echo "Current version: $git_version"
+            echo "Please upgrade Git to use this workflow"
+            exit 1
+          fi
+          echo "✅ Git version check passed"
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Validate upstream remote
+        run: |
+          echo "🔍 Checking upstream remote configuration..."
+          
+          # Add upstream remote if it doesn't exist
+          if ! git remote | grep -q "^upstream$"; then
+            echo "Adding upstream remote..."
+            git remote add upstream https://github.com/kangfenmao/cherry-studio.git
+          fi
+          
+          # Verify upstream URL
+          upstream_url=$(git remote get-url upstream)
+          if [[ ! "$upstream_url" =~ kangfenmao/cherry-studio ]]; then
+            echo "❌ ERROR: Upstream remote URL is incorrect"
+            echo "Expected: https://github.com/kangfenmao/cherry-studio.git"
+            echo "Got: $upstream_url"
+            exit 1
+          fi
+          
+          echo "✅ Upstream remote validated: $upstream_url"
+      
+      - name: Fetch upstream tags
+        run: |
+          echo "📥 Fetching upstream tags..."
+          git fetch upstream --tags
+          echo "✅ Tags fetched successfully"
+      
+      - name: Validate version tag
+        id: validate-version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "🔍 Validating version: $VERSION"
+          
+          # Check semantic versioning pattern
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ ERROR: Invalid version format"
+            echo "Expected: v*.*.* (e.g., v2.9.0)"
+            echo "Got: $VERSION"
+            exit 1
+          fi
+          
+          # Check for pre-release tags
+          if [[ "$VERSION" =~ (alpha|beta|rc) ]]; then
+            echo "❌ ERROR: Pre-release versions not supported"
+            echo "Version: $VERSION"
+            exit 1
+          fi
+          
+          # Verify tag exists in upstream
+          if ! git rev-parse "upstream/$VERSION" >/dev/null 2>&1 && \
+             ! git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "❌ ERROR: Tag $VERSION not found in upstream"
+            echo "Available recent tags:"
+            git tag -l "v*" | tail -10
+            exit 1
+          fi
+          
+          echo "✅ Version $VERSION validated"
+      
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/check-upstreamed-commit.sh
+          chmod +x scripts/merging-rebase-sync.sh
+      
+      - name: Execute merging rebase sync
+        id: sync
+        env:
+          VERSION: ${{ steps.validate-version.outputs.version }}
+        run: |
+          echo "🚀 Starting merging rebase sync to $VERSION..."
+          ./scripts/merging-rebase-sync.sh "$VERSION"
+      
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.validate-version.outputs.version }}
+          SYNC_BRANCH: ${{ steps.sync.outputs.sync_branch }}
+          STATUS: ${{ steps.sync.outputs.status }}
+          SKIPPED_COUNT: ${{ steps.sync.outputs.skipped_count }}
+          CONFLICT_COUNT: ${{ steps.sync.outputs.conflict_count }}
+        run: |
+          echo "📝 Creating pull request..."
+          
+          # Use generated report if available
+          if [ -f "/tmp/sync-report.md" ]; then
+            PR_BODY_FILE="/tmp/sync-report.md"
+          else
+            # Fallback: generate basic PR body
+            cat > /tmp/pr-body.md << EOF
+          ## 🔄 Upstream Sync: $VERSION
+          
+          This PR syncs the fork with upstream Cherry Studio $VERSION using the merging rebase strategy.
+          
+          ### 📊 Sync Summary
+          
+          - **Upstream version**: $VERSION
+          - **Strategy**: Merging rebase (fake merge + rebase custom commits)
+          - **Branch**: \`$SYNC_BRANCH\`
+          - **Status**: $STATUS
+          - **Auto-skipped commits**: $SKIPPED_COUNT
+          - **Conflicts**: $CONFLICT_COUNT
+          
+          ### ✅ What was done
+          
+          1. ✅ Updated \`upstream-stable\` to $VERSION using fake merge
+          2. ✅ Rebased custom commits from \`main\` onto new upstream
+          3. ✅ Used \`git range-diff\` to detect upstreamed commits
+          4. ✅ Created this PR for manual review
+          
+          ### 🧪 Testing Checklist
+          
+          Before merging, please verify:
+          
+          - [ ] Application builds successfully
+          - [ ] Core functionality works
+          - [ ] Fork-specific features still work
+          - [ ] No unexpected breaking changes
+          
+          ### 🔗 Resources
+          
+          - [Upstream Release Notes](https://github.com/kangfenmao/cherry-studio/releases/tag/$VERSION)
+          - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ### 📋 Manual Review Required
+          
+          This PR requires manual review and merge. All conflicts (if any) must be resolved manually to ensure no data loss.
+          EOF
+            PR_BODY_FILE="/tmp/pr-body.md"
+          fi
+          
+          # Determine if PR should be draft
+          DRAFT_FLAG=""
+          if [ "$STATUS" = "conflicts" ]; then
+            DRAFT_FLAG="--draft"
+            echo "⚠️  Creating as draft PR due to conflicts"
+          fi
+          
+          # Create PR
+          gh pr create \
+            --title "Sync upstream $VERSION" \
+            --body-file "$PR_BODY_FILE" \
+            --base main \
+            --head "$SYNC_BRANCH" \
+            --label "upstream-sync" \
+            --label "manual-review-required" \
+            $DRAFT_FLAG || {
+            echo "⚠️  PR creation failed, may already exist"
+            echo "Check: https://github.com/${{ github.repository }}/pulls"
+          }
+          
+          echo "✅ Pull request created"
+      
+      - name: Workflow completed
+        if: always()
+        run: |
+          echo ""
+          echo "🎉 Upstream sync workflow completed!"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Review the created PR"
+          echo "  2. Test the changes locally if needed"
+          echo "  3. Resolve any conflicts manually"
+          echo "  4. Merge the PR when ready"
